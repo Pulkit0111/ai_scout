@@ -13,7 +13,6 @@ from pathlib import Path
 
 from feed_aggregator import fetch_all_feeds, get_articles_by_category
 from categorizer import categorize_articles
-from newsletter_pdf import generate_newsletter_pdf
 from search_handler import search_articles
 from content_overview import generate_content_overview
 from config import CATEGORIES
@@ -52,7 +51,8 @@ async def root():
         "endpoints": {
             "feeds": "/api/feeds",
             "category_feeds": "/api/feeds/{category}",
-            "newsletter_pdf": "/api/newsletter/pdf"
+            "search": "/api/search",
+            "content_overview": "/api/content-overview"
         }
     }
 
@@ -141,33 +141,6 @@ async def get_category_feeds(category: str):
         }
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/newsletter/pdf")
-async def generate_newsletter():
-    """
-    Generate and download newsletter as PDF
-    """
-    try:
-        # Fetch and categorize articles
-        articles = fetch_all_feeds()
-        categorized = categorize_articles(articles)
-        
-        # Generate PDF
-        pdf_bytes = generate_newsletter_pdf(categorized)
-        
-        # Return PDF as response
-        filename = f"AI_Scout_Newsletter_{datetime.now().strftime('%Y%m%d')}.pdf"
-        
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}"
-            }
-        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

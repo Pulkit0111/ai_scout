@@ -33,7 +33,6 @@ const articlesContainer = document.getElementById('articlesContainer');
 const loadingIndicator = document.getElementById('loadingIndicator');
 const emptyState = document.getElementById('emptyState');
 const refreshBtn = document.getElementById('refreshBtn');
-const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 const currentCategoryTitle = document.getElementById('currentCategory');
 const articleCount = document.getElementById('articleCount');
 const searchInput = document.getElementById('searchInput');
@@ -58,10 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (weeklySummaryLoaded) {
             fetchWeeklySummary();
         }
-    });
-    
-    downloadPdfBtn.addEventListener('click', () => {
-        downloadNewsletter();
     });
     
     // Search event listeners
@@ -369,40 +364,6 @@ function createArticleCard(article, index) {
     card.appendChild(link);
     
     return card;
-}
-
-// Download newsletter as PDF
-async function downloadNewsletter() {
-    const originalText = downloadPdfBtn.querySelector('span').textContent;
-    downloadPdfBtn.querySelector('span').textContent = 'Generating...';
-    downloadPdfBtn.disabled = true;
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/newsletter/pdf`);
-        
-        if (!response.ok) {
-            throw new Error('Failed to generate newsletter');
-        }
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `AI_Scout_Newsletter_${new Date().toISOString().split('T')[0]}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        downloadPdfBtn.querySelector('span').textContent = originalText;
-        downloadPdfBtn.disabled = false;
-    } catch (error) {
-        console.error('Error downloading newsletter:', error);
-        alert('Failed to download newsletter. Please try again.');
-        downloadPdfBtn.querySelector('span').textContent = originalText;
-        downloadPdfBtn.disabled = false;
-    }
 }
 
 // Utility functions

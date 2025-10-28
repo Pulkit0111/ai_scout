@@ -87,13 +87,15 @@ def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
         return 0.0
 
 
-def semantic_search(query: str, articles: List[Dict]) -> List[Dict]:
+def semantic_search(query: str, articles: List[Dict], max_articles: int = 100) -> List[Dict]:
     """
     Perform semantic search using embeddings.
+    Optimized to process articles in batches and limit total processing.
     
     Args:
         query: Search query
         articles: List of articles to search
+        max_articles: Maximum number of articles to process (default: 100)
     
     Returns:
         List of articles with semantic relevance scores
@@ -107,9 +109,14 @@ def semantic_search(query: str, articles: List[Dict]) -> List[Dict]:
     if query_embedding is None:
         return []
     
+    # Limit articles to process for performance
+    articles_to_process = articles[:max_articles]
+    
     scored_articles = []
     
-    for article in articles:
+    print(f"Processing {len(articles_to_process)} articles for semantic search...")
+    
+    for idx, article in enumerate(articles_to_process):
         # Combine title and summary for better semantic matching
         # Title is more important, so weight it more
         article_text = f"{article.get('title', '')} {article.get('title', '')} {article.get('summary', '')[:500]}"
@@ -129,6 +136,12 @@ def semantic_search(query: str, articles: List[Dict]) -> List[Dict]:
             article_copy["relevance_score"] = similarity * 100
             article_copy["search_method"] = "semantic"
             scored_articles.append(article_copy)
+        
+        # Progress indicator
+        if (idx + 1) % 20 == 0:
+            print(f"Processed {idx + 1}/{len(articles_to_process)} articles...")
+    
+    print(f"Found {len(scored_articles)} relevant results")
     
     # Sort by similarity
     scored_articles.sort(key=lambda x: x["relevance_score"], reverse=True)
@@ -245,6 +258,7 @@ def hybrid_search(query: str, articles: List[Dict]) -> List[Dict]:
 def search_articles(query: str, articles: List[Dict]) -> Dict:
     """
     Main search function that intelligently chooses search method.
+    Optimized for speed with smart pre-filtering.
     
     Args:
         query: Search query (can be keywords or natural language)
@@ -261,11 +275,13 @@ def search_articles(query: str, articles: List[Dict]) -> Dict:
             "search_type": "none"
         }
     
+    print(f"Search query: '{query}' across {len(articles)} articles")
+    
     # Determine search strategy
     word_count = len(query.split())
     is_simple_query = word_count <= SEARCH_SIMPLE_QUERY_THRESHOLD
     
-    # For very simple queries (1-3 words), keyword search is often better
+    # For very simple queries (1-3 words), keyword search is often better and faster
     if is_simple_query:
         results = simple_keyword_search(query, articles)
         return {
@@ -276,8 +292,21 @@ def search_articles(query: str, articles: List[Dict]) -> Dict:
         }
     
     # For complex queries, use semantic or hybrid search
+    # But first, do keyword filtering to narrow down the search space
     if SEARCH_USE_HYBRID and client:
-        results = hybrid_search(query, articles)
+        # Pre-filter with keyword search to reduce semantic search overhead
+        keyword_results = simple_keyword_search(query, articles)
+        
+        # If we have keyword matches, only do semantic search on those + recent articles
+        if keyword_results:
+            # Take top 50 keyword matches + 50 most recent articles
+            articles_to_search = list({a.get('link'): a for a in keyword_results[:50] + articles[:50]}.values())
+        else:
+            # No keyword matches, search most recent 100 articles
+            articles_to_search = articles[:100]
+        
+        print(f"Narrowed search to {len(articles_to_search)} articles")
+        results = hybrid_search(query, articles_to_search)
         return {
             "query": query,
             "total_results": len(results[:SEARCH_MAX_RESULTS]),
@@ -285,7 +314,8 @@ def search_articles(query: str, articles: List[Dict]) -> Dict:
             "search_type": "hybrid"
         }
     elif client:
-        results = semantic_search(query, articles)
+        # Semantic-only search with limited articles
+        results = semantic_search(query, articles, max_articles=100)
         return {
             "query": query,
             "total_results": len(results[:SEARCH_MAX_RESULTS]),
