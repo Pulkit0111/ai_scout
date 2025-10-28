@@ -505,19 +505,19 @@ function createFullArticleCard(article) {
     const summary = stripHtml(article.summary || '').substring(0, 150) + '...';
     
     return `
-        <div class="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-all border-l-4" style="border-color: var(--color-${sourceType})">
+        <div class="bg-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-all border-l-4 border border-gray-700 hover:border-blue-500" style="border-left-color: var(--color-${sourceType})">
             <span class="source-badge ${sourceType} mb-3">${getSourceName(article.source)}</span>
-            <h3 class="text-lg font-bold text-gray-900 mb-2 line-clamp-2">${escapeHtml(article.title)}</h3>
-            <p class="text-sm text-gray-600 mb-3">${escapeHtml(summary)}</p>
-            <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+            <h3 class="text-lg font-bold text-white mb-2 line-clamp-2">${escapeHtml(article.title)}</h3>
+            <p class="text-sm text-gray-300 mb-3">${escapeHtml(summary)}</p>
+            <div class="flex items-center justify-between text-xs text-gray-400 mb-3">
                 <span><i class="far fa-calendar"></i> ${article.published_date || 'Unknown date'}</span>
-                <span class="px-2 py-1 bg-gray-100 rounded">${article.category || 'General'}</span>
+                <span class="px-2 py-1 bg-gray-700 text-gray-300 rounded">${article.category || 'General'}</span>
             </div>
-            <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="text-blue-600 text-sm font-semibold hover:underline">
+            <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="text-blue-400 text-sm font-semibold hover:text-blue-300">
                 Read full article →
             </a>
-                </div>
-            `;
+        </div>
+    `;
 }
 
 // ===== Helper Functions =====

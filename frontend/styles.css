@@ -141,6 +141,18 @@ body {
     transform: translateY(-1px);
 }
 
+/* ===== Main Content Area ===== */
+.main-content {
+    background: var(--bg-primary);
+    min-height: 50vh;
+}
+
+/* ===== Detail View ===== */
+.detail-view {
+    background: var(--bg-primary);
+    min-height: 50vh;
+}
+
 /* ===== Content Columns ===== */
 .content-column {
     background: var(--bg-card);
