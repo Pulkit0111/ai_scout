@@ -743,46 +743,37 @@ function displaySearchResults(data) {
     
     currentCategoryTitle.textContent = 'Search Results';
     
+    // Hide pagination for search results (showing top results only)
+    paginationContainer.classList.add('hidden');
+    
     if (searchResults.length === 0) {
         articleCount.textContent = 'No results found';
         showEmpty();
-        paginationContainer.classList.add('hidden');
         return;
     }
     
-    // Calculate pagination for search results
+    // Display all search results (already limited to top 6 by backend)
     const totalResults = searchResults.length;
-    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
-    const endIndex = startIndex + ARTICLES_PER_PAGE;
-    const currentPageResults = searchResults.slice(startIndex, endIndex);
-    
-    // Update article count to show pagination info
-    if (totalResults > ARTICLES_PER_PAGE) {
-        const startNum = startIndex + 1;
-        const endNum = Math.min(endIndex, totalResults);
-        articleCount.textContent = `Showing ${startNum}-${endNum} of ${totalResults} search results`;
-    } else {
-        articleCount.textContent = `${totalResults} search results`;
-    }
+    articleCount.textContent = totalResults === 1 
+        ? `${totalResults} result found`
+        : `Top ${totalResults} results`;
     
     const maxScore = Math.max(...searchResults.map(a => a.relevance_score || 0));
     
-    currentPageResults.forEach((article, index) => {
+    searchResults.forEach((article, index) => {
         const articleCard = createArticleCard(article, index);
         
+        // Add relevance score indicator
         if (article.relevance_score && maxScore > 0) {
             const percentage = Math.round((article.relevance_score / maxScore) * 100);
             const scoreIndicator = document.createElement('div');
             scoreIndicator.className = 'relevance-score text-sm mt-3 flex items-center gap-1';
-            scoreIndicator.innerHTML = `<i class="fas fa-star"></i> Relevance: ${percentage}%`;
+            scoreIndicator.innerHTML = `<i class="fas fa-star text-yellow-400"></i> Relevance: ${percentage}%`;
             articleCard.appendChild(scoreIndicator);
         }
         
         articlesGrid.appendChild(articleCard);
     });
-    
-    // Update pagination controls
-    updatePaginationControls(totalResults);
     
     hideLoading();
     articlesContainer.classList.remove('hidden');

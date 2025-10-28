@@ -299,11 +299,11 @@ def search_articles(query: str, articles: List[Dict]) -> Dict:
         
         # If we have keyword matches, only do semantic search on those + recent articles
         if keyword_results:
-            # Take top 50 keyword matches + 50 most recent articles
-            articles_to_search = list({a.get('link'): a for a in keyword_results[:50] + articles[:50]}.values())
+            # Take top 30 keyword matches + 20 most recent articles (max ~40-50)
+            articles_to_search = list({a.get('link'): a for a in keyword_results[:30] + articles[:20]}.values())
         else:
-            # No keyword matches, search most recent 100 articles
-            articles_to_search = articles[:100]
+            # No keyword matches, search most recent 40 articles
+            articles_to_search = articles[:40]
         
         print(f"Narrowed search to {len(articles_to_search)} articles")
         results = hybrid_search(query, articles_to_search)
@@ -315,7 +315,7 @@ def search_articles(query: str, articles: List[Dict]) -> Dict:
         }
     elif client:
         # Semantic-only search with limited articles
-        results = semantic_search(query, articles, max_articles=100)
+        results = semantic_search(query, articles, max_articles=50)
         return {
             "query": query,
             "total_results": len(results[:SEARCH_MAX_RESULTS]),

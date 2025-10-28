@@ -61,7 +61,7 @@ OPENAI_TEMPERATURE = 0.3  # Lower temperature for consistent results
 
 # Search Configuration
 SEARCH_SIMPLE_QUERY_THRESHOLD = 3  # Word count threshold for simple vs complex queries
-SEARCH_MAX_RESULTS = 50  # Maximum number of search results to return
-SEARCH_SEMANTIC_THRESHOLD = 0.45  # Minimum similarity score for semantic search (0-1)
+SEARCH_MAX_RESULTS = 6  # Maximum number of search results to return (top 6 most relevant)
+SEARCH_SEMANTIC_THRESHOLD = 0.70  # Minimum similarity score for semantic search (0-1, higher = more selective)
 SEARCH_USE_HYBRID = True  # Combine keyword and semantic search for best results
 
