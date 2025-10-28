@@ -67,28 +67,70 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function initializeApp() {
-    showLoading();
+    showLoading('Loading AI updates from 28 sources');
     
     try {
-        // Fetch all data in parallel
-        const [articlesData, companiesData, todayData] = await Promise.all([
-            fetch(`${API_BASE_URL}/api/feeds`).then(r => r.json()),
-            fetch(`${API_BASE_URL}/api/companies`).then(r => r.json()),
-            fetch(`${API_BASE_URL}/api/today`).then(r => r.json())
+        // Fetch all data in parallel with timeout
+        const timeout = (ms) => new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Request timed out')), ms)
+        );
+        
+        const [articlesData, companiesData, todayData] = await Promise.race([
+            Promise.all([
+                fetch(`${API_BASE_URL}/api/feeds`).then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                }),
+                fetch(`${API_BASE_URL}/api/companies`).then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                }),
+                fetch(`${API_BASE_URL}/api/today`).then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                })
+            ]),
+            timeout(30000) // 30 second timeout
         ]);
         
         // Store in state
-        AppState.allArticles = flattenArticles(articlesData.categories);
-        AppState.companies = companiesData.companies;
+        AppState.allArticles = flattenArticles(articlesData.categories || {});
+        AppState.companies = companiesData.companies || [];
         AppState.todayArticles = todayData.articles || [];
         
         // Render homepage
         renderHomepage();
         hideLoading();
         
+        // Show success message
+        showSuccess(`Loaded ${AppState.allArticles.length} articles from ${AppState.companies.length} companies`);
+        
     } catch (error) {
         console.error('Error initializing app:', error);
-        showError('Failed to load data. Please refresh the page.');
+        hideLoading();
+        
+        if (error.message === 'Request timed out') {
+            showError('Loading is taking longer than usual', 'The backend server may be starting up. Please wait and refresh.');
+        } else if (error.message.includes('HTTP')) {
+            showError('Server error', 'Please make sure the backend is running on port 8000.');
+        } else if (error.message === 'Failed to fetch') {
+            showError('Cannot connect to server', 'Please start the backend server and refresh.');
+        } else {
+            showError('Failed to load data', 'Please refresh the page or check your connection.');
+        }
+        
+        // Show a fallback UI
+        document.getElementById('mainContent').classList.remove('hidden');
+        document.getElementById('mainContent').innerHTML = `
+            <div class="container mx-auto px-4 text-center py-20">
+                <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">Unable to Load Content</h2>
+                <p class="text-gray-600 mb-6">Please make sure the backend server is running.</p>
+                <button onclick="location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg">
+                    <i class="fas fa-redo mr-2"></i>Try Again
+                </button>
+            </div>
+        `;
     }
 }
 
@@ -251,10 +293,11 @@ async function viewCompany(companyId) {
     AppState.currentView = 'company';
     AppState.currentCompany = companyId;
     
-    showLoading();
+    showLoading('Loading company updates');
     
     try {
         const response = await fetch(`${API_BASE_URL}/api/companies/${companyId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         
         // Hide main content, show detail view
@@ -411,10 +454,11 @@ async function performSearch(query) {
     AppState.currentView = 'search';
     AppState.searchQuery = query;
     
-    showLoading();
+    showLoading('Searching articles');
     
     try {
         const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         
         document.getElementById('mainContent').classList.add('hidden');
@@ -582,17 +626,71 @@ function escapeHtml(text) {
 }
 
 // ===== UI State Functions =====
-function showLoading() {
-    document.getElementById('loadingIndicator').classList.remove('hidden');
+function showLoading(message = 'Loading AI updates') {
+    const indicator = document.getElementById('loadingIndicator');
+    if (indicator) {
+        indicator.classList.remove('hidden');
+        const textElement = indicator.querySelector('.loader-text');
+        if (textElement) {
+            textElement.textContent = message;
+        }
+    }
 }
 
 function hideLoading() {
-    document.getElementById('loadingIndicator').classList.add('hidden');
+    const indicator = document.getElementById('loadingIndicator');
+    if (indicator) {
+        indicator.classList.add('hidden');
+    }
 }
 
-function showError(message) {
+function showError(message, details = '') {
     hideLoading();
-    alert(message);
+    
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md';
+    errorDiv.innerHTML = `
+        <div class="flex items-start gap-3">
+            <i class="fas fa-exclamation-circle text-2xl"></i>
+            <div class="flex-1">
+                <div class="font-semibold mb-1">${message}</div>
+                ${details ? `<div class="text-sm opacity-90">${details}</div>` : ''}
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" class="text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(errorDiv);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (errorDiv.parentElement) {
+            errorDiv.style.transition = 'opacity 0.3s';
+            errorDiv.style.opacity = '0';
+            setTimeout(() => errorDiv.remove(), 300);
+        }
+    }, 5000);
+}
+
+function showSuccess(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-50';
+    successDiv.innerHTML = `
+        <div class="flex items-center gap-3">
+            <i class="fas fa-check-circle text-2xl"></i>
+            <div class="font-semibold">${message}</div>
+        </div>
+    `;
+    
+    document.body.appendChild(successDiv);
+    
+    setTimeout(() => {
+        successDiv.style.transition = 'opacity 0.3s';
+        successDiv.style.opacity = '0';
+        setTimeout(() => successDiv.remove(), 300);
+    }, 3000);
 }
 
 // ===== Help Functions =====
