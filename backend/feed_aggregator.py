@@ -38,12 +38,14 @@ def fetch_feed(url: str, source_name: str) -> List[Dict]:
             # Parse and format the published date
             if article["published"]:
                 try:
-                    parsed_date = feedparser._parse_date(entry.get("published_parsed", entry.get("updated_parsed")))
+                    # Get the already-parsed time tuple directly
+                    parsed_date = entry.get("published_parsed") or entry.get("updated_parsed")
                     if parsed_date:
                         article["published_date"] = datetime(*parsed_date[:6]).strftime("%Y-%m-%d")
                     else:
                         article["published_date"] = datetime.now().strftime("%Y-%m-%d")
-                except:
+                except Exception as e:
+                    print(f"Error parsing date for {source_name}: {e}")
                     article["published_date"] = datetime.now().strftime("%Y-%m-%d")
             else:
                 article["published_date"] = datetime.now().strftime("%Y-%m-%d")
