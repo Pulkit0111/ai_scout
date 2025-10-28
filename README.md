@@ -35,7 +35,7 @@ AI Scout is a web-based application that aggregates the latest AI news and resea
 
 #### Why Plain HTML Instead of a Framework?
 
-We've intentionally chosen plain HTML and vanilla JavaScript over modern frontend frameworks (React, Vue, Angular) to keep the initial implementation simple and straightforward. This approach offers several benefits:
+I have intentionally chosen plain HTML and vanilla JavaScript over modern frontend frameworks (React, Vue, Angular) to keep the initial implementation simple and straightforward. This approach offers several benefits:
 
 - **Simplicity**: No build process, no complex tooling, no dependency management
 - **Learning**: Easy to understand for developers new to web development
@@ -199,17 +199,6 @@ To contribute or modify the application:
 ## License
 
 This project is open source and available for educational purposes.
-
-## Future Enhancements
-
-- [ ] Add user authentication
-- [ ] Implement article bookmarking
-- [ ] Add email newsletter subscription
-- [ ] Include more RSS sources
-- [ ] Add search functionality
-- [ ] Implement article filtering by date
-- [ ] Add dark mode support
-- [ ] Store articles in a database for history
 
 ## Support
 
