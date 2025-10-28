@@ -324,30 +324,51 @@
             <!-- Unified Filter Section -->
             <div class="mb-8">
                 <div class="bg-gray-800 rounded-lg shadow-xl border border-gray-700 p-6">
-                    <div class="flex items-center justify-between mb-4 flex-wrap gap-4">
+                    <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
                         <h2 class="text-lg font-semibold text-gray-200">
                             <i class="fas fa-filter mr-2"></i>Filters
                         </h2>
-                        <button id="clearFiltersBtn" class="text-sm text-blue-400 hover:text-blue-300 flex items-center">
-                            <i class="fas fa-times-circle mr-1"></i>Clear All
+                        <button id="clearFiltersBtn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm flex items-center transition">
+                            <i class="fas fa-times-circle mr-2"></i>Clear All Filters
                         </button>
                     </div>
                     
-                    <!-- Category Filters -->
-                    <div class="mb-4">
-                        <h3 class="text-sm font-semibold text-gray-400 mb-2">CATEGORIES</h3>
-                        <div id="categoryFilters" class="flex flex-wrap gap-2">
-                            <!-- Category filters will be loaded dynamically -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Category Filter Dropdown -->
+                        <div>
+                            <label class="text-sm font-semibold text-gray-400 mb-2 block">CATEGORY</label>
+                            <select id="categoryFilter" class="w-full bg-gray-700 text-white border-2 border-gray-600 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none">
+                                <option value="">All Categories</option>
+                                <!-- Options will be loaded dynamically -->
+                            </select>
+                        </div>
+                        
+                        <!-- Time Range Filter Dropdown -->
+                        <div>
+                            <label class="text-sm font-semibold text-gray-400 mb-2 block">TIME RANGE</label>
+                            <select id="timeRangeFilter" class="w-full bg-gray-700 text-white border-2 border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none">
+                                <option value="">All Time</option>
+                                <option value="24h">Today</option>
+                                <option value="7d">Recent (7 days)</option>
+                                <option value="30d">Last Month</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Source Filter Dropdown -->
+                        <div>
+                            <label class="text-sm font-semibold text-gray-400 mb-2 block">SOURCE</label>
+                            <select id="sourceFilter" class="w-full bg-gray-700 text-white border-2 border-gray-600 rounded-lg px-4 py-2 focus:border-purple-500 focus:outline-none">
+                                <option value="">All Sources</option>
+                                <!-- Options will be loaded dynamically -->
+                            </select>
                         </div>
                     </div>
                     
-                    <!-- Time Filters -->
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-400 mb-2">TIME RANGE</h3>
-                        <div id="timeFilters" class="flex flex-wrap gap-2">
-                            <button class="filter-tag time-filter" data-filter="24h">Today</button>
-                            <button class="filter-tag time-filter" data-filter="7d">Recent</button>
-                            <button class="filter-tag time-filter" data-filter="30d">Last Month</button>
+                    <!-- Active Filters Display -->
+                    <div id="activeFiltersDisplay" class="mt-4 hidden">
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <span class="text-sm text-gray-400">Active:</span>
+                            <div id="activeFilterTags" class="flex flex-wrap gap-2"></div>
                         </div>
                     </div>
                 </div>

@@ -1,6 +1,6 @@
 """
-Weekly Summary Generator
-Provides statistics and highlights for articles from the past week
+Content Overview Generator
+Provides statistics and highlights for all curated articles
 """
 
 from datetime import datetime, timedelta
@@ -114,7 +114,7 @@ def get_highlights(categorized_articles: Dict[str, List[Dict]], count: int = 5) 
     return sorted_articles[:count]
 
 
-def generate_weekly_summary(categorized_articles: Dict[str, List[Dict]]) -> Dict:
+def generate_content_overview(categorized_articles: Dict[str, List[Dict]]) -> Dict:
     """
     Generate a complete content overview with statistics and highlights.
     

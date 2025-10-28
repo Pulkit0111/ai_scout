@@ -1,22 +1,33 @@
 // API Base URL - use relative path since frontend is served by same server
 const API_BASE_URL = window.location.origin;
 
-// State
-let allArticles = {};
-let activeFilters = new Set(); // Set of active filter names
+// State - Store ALL articles client-side for filtering
+let allArticlesRaw = []; // Flat list of all articles
+let allArticlesByCategory = {}; // Articles grouped by category
 let activeTab = 'articles'; // 'articles' or 'weeklySummary'
 let isSearchMode = false;
 let searchResults = [];
 let weeklySummaryData = null;
 let weeklySummaryLoaded = false;
 
+// Current filter state
+let currentFilters = {
+    category: '',
+    timeRange: '',
+    source: ''
+};
+
 // DOM Elements
 const articlesTab = document.getElementById('articlesTab');
 const weeklySummaryTab = document.getElementById('weeklySummaryTab');
 const articlesTabContent = document.getElementById('articlesTabContent');
 const weeklySummaryTabContent = document.getElementById('weeklySummaryTabContent');
-const categoryFilters = document.getElementById('categoryFilters');
+const categoryFilter = document.getElementById('categoryFilter');
+const timeRangeFilter = document.getElementById('timeRangeFilter');
+const sourceFilter = document.getElementById('sourceFilter');
 const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+const activeFiltersDisplay = document.getElementById('activeFiltersDisplay');
+const activeFilterTags = document.getElementById('activeFilterTags');
 const articlesGrid = document.getElementById('articlesGrid');
 const articlesContainer = document.getElementById('articlesContainer');
 const loadingIndicator = document.getElementById('loadingIndicator');
@@ -37,13 +48,13 @@ const topSources = document.getElementById('topSources');
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
-    initializeFilters();
     initializeTabs();
-    fetchArticles();
+    initializeFilterListeners();
+    fetchArticles(); // Fetch once and store
     
     // Event listeners
     refreshBtn.addEventListener('click', () => {
-        fetchArticles();
+        fetchArticles(); // Re-fetch from server
         if (weeklySummaryLoaded) {
             fetchWeeklySummary();
         }
@@ -51,10 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     downloadPdfBtn.addEventListener('click', () => {
         downloadNewsletter();
-    });
-    
-    clearFiltersBtn.addEventListener('click', () => {
-        clearAllFilters();
     });
     
     // Search event listeners
@@ -92,170 +99,213 @@ function switchTab(tab) {
     activeTab = tab;
     
     if (tab === 'articles') {
-        // Show articles tab
         articlesTab.classList.add('active');
         weeklySummaryTab.classList.remove('active');
         articlesTabContent.classList.add('active');
         weeklySummaryTabContent.classList.remove('active');
     } else {
-        // Show weekly summary tab
         articlesTab.classList.remove('active');
         weeklySummaryTab.classList.add('active');
         articlesTabContent.classList.remove('active');
         weeklySummaryTabContent.classList.add('active');
         
-        // Lazy load weekly summary if not already loaded
         if (!weeklySummaryLoaded) {
             fetchWeeklySummary();
         }
     }
 }
 
-// Initialize filter tags
-function initializeFilters() {
-    const categories = [
-        'LLMs & Foundation Models',
-        'AI Tools & Platforms',
-        'Open Source AI Projects',
-        'AI Research & Papers',
-        'AI Agents & Automation',
-        'AI in Development',
-        'Multimodal AI'
-    ];
+// Initialize filter dropdown listeners
+function initializeFilterListeners() {
+    categoryFilter.addEventListener('change', () => {
+        currentFilters.category = categoryFilter.value;
+        applyFiltersClientSide();
+    });
     
-    // Add category filter tags
+    timeRangeFilter.addEventListener('change', () => {
+        currentFilters.timeRange = timeRangeFilter.value;
+        applyFiltersClientSide();
+    });
+    
+    sourceFilter.addEventListener('change', () => {
+        currentFilters.source = sourceFilter.value;
+        applyFiltersClientSide();
+    });
+    
+    clearFiltersBtn.addEventListener('click', () => {
+        clearAllFilters();
+    });
+}
+
+// Populate filter dropdowns dynamically
+function populateFilterDropdowns() {
+    // Populate category dropdown
+    const categories = Object.keys(allArticlesByCategory);
+    categoryFilter.innerHTML = '<option value="">All Categories</option>';
     categories.forEach(category => {
-        const filterTag = createFilterTag(category, 'category');
-        categoryFilters.appendChild(filterTag);
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        categoryFilter.appendChild(option);
     });
     
-    // Add event listeners to time filters (already in HTML)
-    const timeFilterTags = document.querySelectorAll('.time-filter');
-    timeFilterTags.forEach(tag => {
-        tag.addEventListener('click', () => toggleFilter(tag.dataset.filter, 'time'));
-    });
-}
-
-// Create filter tag element
-function createFilterTag(name, type) {
-    const tag = document.createElement('button');
-    tag.className = 'filter-tag';
-    tag.textContent = name;
-    tag.dataset.filter = name;
-    tag.dataset.type = type;
-    
-    tag.addEventListener('click', () => toggleFilter(name, type));
-    
-    return tag;
-}
-
-// Toggle filter on/off
-function toggleFilter(filterName, filterType) {
-    // If in search mode, clear it first
-    if (isSearchMode) {
-        clearSearch();
-    }
-    
-    // Toggle the filter
-    if (activeFilters.has(filterName)) {
-        activeFilters.delete(filterName);
-    } else {
-        // For time filters, only allow one at a time
-        if (filterType === 'time') {
-            activeFilters.forEach(f => {
-                if (f === '24h' || f === '7d' || f === '30d') {
-                    activeFilters.delete(f);
-                }
-            });
-        }
-        activeFilters.add(filterName);
-    }
-    
-    // Update UI
-    updateFilterUI();
-    
-    // Fetch articles with new filters
-    fetchArticles();
-}
-
-// Update filter UI to show active states
-function updateFilterUI() {
-    // Update category filters
-    const categoryTags = categoryFilters.querySelectorAll('.filter-tag');
-    categoryTags.forEach(tag => {
-        if (activeFilters.has(tag.dataset.filter)) {
-            tag.classList.add('active');
-        } else {
-            tag.classList.remove('active');
-        }
-    });
-    
-    // Update time filters
-    const timeTags = document.querySelectorAll('.time-filter');
-    timeTags.forEach(tag => {
-        if (activeFilters.has(tag.dataset.filter)) {
-            tag.classList.add('active');
-        } else {
-            tag.classList.remove('active');
-        }
+    // Populate source dropdown from actual articles
+    const sources = [...new Set(allArticlesRaw.map(a => a.source))].sort();
+    sourceFilter.innerHTML = '<option value="">All Sources</option>';
+    sources.forEach(source => {
+        const option = document.createElement('option');
+        option.value = source;
+        option.textContent = source;
+        sourceFilter.appendChild(option);
     });
 }
 
 // Clear all filters
 function clearAllFilters() {
-    activeFilters.clear();
-    updateFilterUI();
-    fetchArticles();
+    currentFilters = {
+        category: '',
+        timeRange: '',
+        source: ''
+    };
+    
+    categoryFilter.value = '';
+    timeRangeFilter.value = '';
+    sourceFilter.value = '';
+    
+    applyFiltersClientSide();
 }
 
-// Fetch articles from API
+// Apply filters client-side (no API call!)
+function applyFiltersClientSide() {
+    let filteredArticles = [...allArticlesRaw];
+    
+    // Apply category filter
+    if (currentFilters.category) {
+        filteredArticles = filteredArticles.filter(a => a.category === currentFilters.category);
+    }
+    
+    // Apply time range filter
+    if (currentFilters.timeRange) {
+        const now = new Date();
+        const cutoffDate = new Date();
+        
+        if (currentFilters.timeRange === '24h') {
+            cutoffDate.setDate(now.getDate() - 1);
+        } else if (currentFilters.timeRange === '7d') {
+            cutoffDate.setDate(now.getDate() - 7);
+        } else if (currentFilters.timeRange === '30d') {
+            cutoffDate.setDate(now.getDate() - 30);
+        }
+        
+        filteredArticles = filteredArticles.filter(article => {
+            try {
+                const articleDate = new Date(article.published_date);
+                return articleDate >= cutoffDate;
+            } catch {
+                return true; // Include if date parsing fails
+            }
+        });
+    }
+    
+    // Apply source filter
+    if (currentFilters.source) {
+        filteredArticles = filteredArticles.filter(a => a.source === currentFilters.source);
+    }
+    
+    // Update active filters display
+    updateActiveFiltersDisplay();
+    
+    // Display filtered articles
+    displayFilteredArticles(filteredArticles);
+}
+
+// Update active filters display
+function updateActiveFiltersDisplay() {
+    const hasFilters = currentFilters.category || currentFilters.timeRange || currentFilters.source;
+    
+    if (hasFilters) {
+        activeFiltersDisplay.classList.remove('hidden');
+        activeFilterTags.innerHTML = '';
+        
+        if (currentFilters.category) {
+            const tag = createActiveFilterTag('Category', currentFilters.category);
+            activeFilterTags.appendChild(tag);
+        }
+        
+        if (currentFilters.timeRange) {
+            const timeLabels = {
+                '24h': 'Today',
+                '7d': 'Recent (7 days)',
+                '30d': 'Last Month'
+            };
+            const tag = createActiveFilterTag('Time', timeLabels[currentFilters.timeRange]);
+            activeFilterTags.appendChild(tag);
+        }
+        
+        if (currentFilters.source) {
+            const tag = createActiveFilterTag('Source', currentFilters.source);
+            activeFilterTags.appendChild(tag);
+        }
+    } else {
+        activeFiltersDisplay.classList.add('hidden');
+    }
+}
+
+// Create active filter tag element
+function createActiveFilterTag(type, value) {
+    const tag = document.createElement('span');
+    tag.className = 'inline-flex items-center bg-blue-900 text-blue-200 text-xs font-semibold px-3 py-1 rounded-full';
+    tag.innerHTML = `<strong>${type}:</strong>&nbsp;${value}`;
+    return tag;
+}
+
+// Fetch articles from API (only once, or on refresh)
 async function fetchArticles() {
     showLoading();
     
     try {
-        let url = `${API_BASE_URL}/api/feeds`;
-        
-        // Build filters query parameter
-        if (activeFilters.size > 0) {
-            const filtersArray = Array.from(activeFilters);
-            url += `?filters=${encodeURIComponent(filtersArray.join(','))}`;
-        }
-        
-        const response = await fetch(url);
+        const response = await fetch(`${API_BASE_URL}/api/feeds`);
         
         if (!response.ok) {
             throw new Error('Failed to fetch articles');
         }
         
         const data = await response.json();
-        allArticles = data.categories;
+        allArticlesByCategory = data.categories;
         
-        displayArticles();
+        // Flatten into a single array for easier filtering
+        allArticlesRaw = [];
+        for (const [category, articles] of Object.entries(allArticlesByCategory)) {
+            articles.forEach(article => {
+                article.category = category; // Ensure category is set
+                allArticlesRaw.push(article);
+            });
+        }
+        
+        // Populate dropdowns with available options
+        populateFilterDropdowns();
+        
+        // Display all articles initially
+        applyFiltersClientSide();
+        
     } catch (error) {
         console.error('Error fetching articles:', error);
         showError('Failed to load articles. Please make sure the backend is running.');
     }
 }
 
-// Display articles
-function displayArticles() {
+// Display filtered articles
+function displayFilteredArticles(articlesToDisplay) {
     articlesGrid.innerHTML = '';
     
-    let articlesToDisplay = [];
-    let categoryName = 'All Articles';
-    
-    // Get all articles from all categories
-    Object.values(allArticles).forEach(categoryArticles => {
-        articlesToDisplay = articlesToDisplay.concat(categoryArticles);
-    });
-    
-    // Update title based on active filters
-    if (activeFilters.size > 0) {
-        const filterNames = Array.from(activeFilters);
-        categoryName = `Filtered: ${filterNames.join(', ')}`;
+    // Update title
+    let titleText = 'All Articles';
+    if (currentFilters.category) {
+        titleText = currentFilters.category;
+    } else if (currentFilters.timeRange || currentFilters.source) {
+        titleText = 'Filtered Articles';
     }
-    
-    currentCategoryTitle.textContent = categoryName;
+    currentCategoryTitle.textContent = titleText;
     
     if (articlesToDisplay.length === 0) {
         showEmpty();
@@ -280,17 +330,14 @@ function createArticleCard(article, index) {
     card.className = 'article-card bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 fade-in';
     card.style.animationDelay = `${index * 0.05}s`;
     
-    // Category badge
     const categoryBadge = document.createElement('span');
     categoryBadge.className = 'inline-block bg-blue-900 text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded mb-3';
     categoryBadge.textContent = article.category || 'Uncategorized';
     
-    // Title
     const title = document.createElement('h3');
     title.className = 'text-lg font-bold text-white mb-2 line-clamp-2';
     title.textContent = article.title;
     
-    // Meta information
     const meta = document.createElement('div');
     meta.className = 'flex items-center space-x-2 text-sm text-gray-400 mb-3';
     meta.innerHTML = `
@@ -300,13 +347,11 @@ function createArticleCard(article, index) {
         <span class="font-medium">${article.source || 'Unknown source'}</span>
     `;
     
-    // Summary
     const summary = document.createElement('p');
     summary.className = 'text-gray-300 text-sm mb-4 line-clamp-3';
     const cleanSummary = stripHtmlTags(article.summary || 'No summary available');
     summary.textContent = cleanSummary.length > 150 ? cleanSummary.substring(0, 150) + '...' : cleanSummary;
     
-    // Read more link
     const link = document.createElement('a');
     link.href = article.link || '#';
     link.target = '_blank';
@@ -391,17 +436,17 @@ function stripHtmlTags(html) {
     return tmp.textContent || tmp.innerText || '';
 }
 
-// Weekly Summary Functions
+// Content Overview Functions
 
 async function fetchWeeklySummary() {
     weeklySummaryLoading.classList.remove('hidden');
     weeklySummarySection.classList.add('hidden');
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/weekly-summary`);
+        const response = await fetch(`${API_BASE_URL}/api/content-overview`);
         
         if (!response.ok) {
-            throw new Error('Failed to fetch weekly summary');
+            throw new Error('Failed to fetch content overview');
         }
         
         const data = await response.json();
@@ -410,11 +455,11 @@ async function fetchWeeklySummary() {
         
         displayWeeklySummary();
     } catch (error) {
-        console.error('Error fetching weekly summary:', error);
+        console.error('Error fetching content overview:', error);
         weeklySummaryLoading.innerHTML = `
             <div class="text-center text-red-400">
                 <i class="fas fa-exclamation-circle text-4xl mb-4"></i>
-                <p>Failed to load weekly summary</p>
+                <p>Failed to load content overview</p>
             </div>
         `;
     }
@@ -565,10 +610,6 @@ async function performSearch(query) {
     showLoading();
     isSearchMode = true;
     
-    // Clear filters when searching
-    activeFilters.clear();
-    updateFilterUI();
-    
     try {
         const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
         
@@ -631,5 +672,6 @@ function clearSearch() {
     clearSearchBtn.classList.add('hidden');
     searchInput.classList.remove('search-active');
     
-    displayArticles();
+    // Return to filtered view
+    applyFiltersClientSide();
 }
