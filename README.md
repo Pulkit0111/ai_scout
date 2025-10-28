@@ -1,18 +1,18 @@
 # AI Scout Application
 
-AI Scout is a web-based application that aggregates the latest AI news and research from various RSS feeds and presents them in an organized, categorized format. Users can browse articles by category and download a PDF newsletter.
+AI Scout is a web-based application that curates quality AI research and updates from trusted RSS feeds and presents them in an organized, categorized format. Users can browse articles by category, apply filters, and download a professional PDF newsletter.
 
 ## Features
 
-- 📰 **RSS Feed Aggregation**: Fetches up to 50 articles per source for comprehensive historical coverage
+- 📰 **Curated Content**: Fetches up to 50 articles per source from trusted AI research blogs and publications
 - 🏷️ **Smart Categorization**: Automatically categorizes articles into 7 AI-focused categories
 - 🔍 **Natural Language Search**: Search articles using keywords or natural language queries powered by OpenAI
-- 🏷️ **Multi-Filter System**: Combine category and time filters (Last 24 Hours, Last 7 Days) with tag-style UI
-- 📊 **Weekly Summary Dashboard**: Dedicated tab with statistics, category breakdown, top sources, and highlights from the past 7 days
-- 📑 **Tab Navigation**: Switch between Articles view and Weekly Summary view
+- 🏷️ **Multi-Filter System**: Combine category and time filters (Today, Recent, Last Month) with tag-style UI
+- 📊 **Content Overview Dashboard**: Dedicated tab with statistics, category breakdown, top sources, and highlights
+- 📑 **Tab Navigation**: Switch between Articles view and Content Overview
 - 🎨 **Modern UI**: Clean, responsive interface built with Tailwind CSS
 - 📄 **Professional PDF Newsletter**: Generate beautifully formatted PDF newsletters with branding
-- 🔄 **Real-time Updates**: Refresh feeds to get the latest articles
+- 🔄 **Regular Updates**: Refresh feeds to get the latest curated content
 
 ## Categories
 
@@ -139,25 +139,25 @@ You can view the interactive API documentation at:
 2. **Open your browser** to `http://localhost:8000`
 
 ### Articles Tab (Default View)
-3. **Apply Filters**: Click on category tags (LLMs, AI Tools, etc.) and time filters (Last 24 Hours, Last 7 Days)
+3. **Apply Filters**: Click on category tags (LLMs, AI Tools, etc.) and time filters (Today, Recent, Last Month)
    - Multiple filters can be active at once (combined with AND logic)
    - Active filters show with a checkmark and blue/green background
    - Click "Clear All" to reset filters
 4. **Search articles** using the search bar:
    - Simple keyword search: "GPT-4", "transformers"
    - Natural language: "recent research papers on multimodal AI agents"
-   - Complex queries: "open source tools for LLM development from last week"
-5. **Browse articles** in the filtered grid view
+   - Complex queries: "open source tools for LLM development"
+5. **Browse curated articles** in the filtered grid view
 
-### Weekly Summary Tab
-6. **Click "Weekly Summary" tab** to view 7-day statistics:
+### Content Overview Tab
+6. **Click "Content Overview" tab** to view content statistics:
    - Total articles, categories, and sources
    - Category breakdown with article counts
    - Top contributing sources
-   - Featured highlights with full details
+   - Featured highlights with summaries
 
 ### Other Features
-7. **Refresh** to fetch the latest articles (up to 50 per source)
+7. **Refresh** to fetch the latest curated content (up to 50 articles per source)
 8. **Download PDF** to generate a professionally formatted newsletter
 
 **Note:** The backend serves both the API and the frontend web interface. No separate frontend server is needed!
@@ -168,11 +168,11 @@ You can view the interactive API documentation at:
 - `GET /static/*` - Static files (JavaScript, CSS, etc.)
 - `GET /api/feeds` - Get all feeds grouped by category
 - `GET /api/feeds?filters=24h,LLMs & Foundation Models` - Get feeds with multiple filters (comma-separated)
-  - Supports time filters: `24h`, `7d`
+  - Supports time filters: `24h` (Today), `7d` (Recent), `30d` (Last Month)
   - Supports category filters: Any category name from the categories list
   - Filters are combined with AND logic
 - `GET /api/feeds/{category}` - Get feeds for a specific category
-- `GET /api/weekly-summary` - Get weekly summary with statistics and highlights (7-day data)
+- `GET /api/weekly-summary` - Get content overview with statistics and highlights
 - `GET /api/search?q={query}` - Search articles using keywords or natural language
 - `GET /api/newsletter/pdf` - Generate and download newsletter as PDF
 - `GET /api/categories` - Get list of available categories
@@ -235,14 +235,14 @@ CATEGORIES = {
 
 ## RSS Feed Sources
 
-The application aggregates news from the following sources:
+The application curates content from trusted, high-quality AI sources:
 
-- Hugging Face Blog
-- OpenAI Blog
-- Google AI Blog
-- The Batch (DeepLearning.AI)
+- **Hugging Face Blog** - Latest developments in open-source AI models and tools
+- **OpenAI Blog** - Announcements and research from OpenAI
+- **Google AI Blog** - Research updates from Google's AI teams
+- **The Batch (DeepLearning.AI)** - Weekly curated AI news and insights
 
-You can add more sources in `backend/config.py`.
+These sources prioritize depth and quality over frequency, providing thoughtful analysis rather than breaking news. You can add more sources in `backend/config.py`.
 
 ## Troubleshooting
 
