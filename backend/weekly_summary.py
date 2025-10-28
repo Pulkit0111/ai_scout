@@ -116,7 +116,7 @@ def get_highlights(categorized_articles: Dict[str, List[Dict]], count: int = 5) 
 
 def generate_weekly_summary(categorized_articles: Dict[str, List[Dict]]) -> Dict:
     """
-    Generate a complete weekly summary with statistics and highlights.
+    Generate a complete content overview with statistics and highlights.
     
     Args:
         categorized_articles: Dictionary with categories as keys and article lists as values
@@ -124,20 +124,18 @@ def generate_weekly_summary(categorized_articles: Dict[str, List[Dict]]) -> Dict
     Returns:
         Dictionary containing statistics and highlights
     """
-    # Filter articles from the past 7 days
-    weekly_categorized = {}
-    for category, articles in categorized_articles.items():
-        weekly_articles = filter_articles_by_days(articles, days=7)
-        weekly_categorized[category] = weekly_articles
+    # Use all articles for content overview (no time filtering)
+    # This shows the full picture of all curated content
+    weekly_categorized = categorized_articles
     
     # Calculate statistics
     statistics = calculate_statistics(weekly_categorized)
     
-    # Get highlights
+    # Get highlights (top 5 most recent across all articles)
     highlights = get_highlights(weekly_categorized, count=5)
     
     return {
-        "period": "Last 7 Days",
+        "period": "All Content",
         "statistics": statistics,
         "highlights": highlights,
         "generated_at": datetime.now().isoformat()
