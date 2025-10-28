@@ -54,7 +54,7 @@ def create_footer(canvas, doc):
     # Footer text
     canvas.setFillColor(colors.HexColor('#6b7280'))
     canvas.setFont("Helvetica", 8)
-    footer_text = "Built with ❤️ by Pulkit Tyagi"
+    footer_text = "Generated using AI Scout - Built by Pulkit Tyagi"
     canvas.drawCentredString(letter[0] / 2, 0.4*inch, footer_text)
     
     canvas.restoreState()
@@ -416,7 +416,7 @@ def generate_newsletter_pdf(categorized_articles: Dict[str, List[Dict]]) -> Byte
         fontName='Helvetica'
     )
     
-    copyright_text = f"© {datetime.now().year} AI Scout • Built with ❤️ by Pulkit Tyagi"
+    copyright_text = f"© {datetime.now().year} AI Scout • Generated using AI Scout - Built by Pulkit Tyagi"
     copyright_para = Paragraph(copyright_text, copyright_style)
     elements.append(copyright_para)
     
