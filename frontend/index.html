@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Scout - What's Happening in AI Today</title>
+    <title>AI Scout - Your AI News Aggregator</title>
     
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,207 +16,151 @@
 </head>
 <body class="bg-gray-900">
 
-<!-- Hero Section with Search -->
-<section class="hero-section">
-    <div class="container mx-auto px-4 py-12 text-center">
-        <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">
-            What's Happening in AI Today?
+<!-- Header -->
+<header class="header-section">
+    <div class="container mx-auto px-4 py-6">
+        <h1 class="text-3xl font-bold text-white mb-2">
+            <i class="fas fa-robot text-blue-500 mr-2"></i>AI Scout
         </h1>
-        <p class="text-lg md:text-xl text-blue-100 mb-8">
-            Your single source for all AI news, updates, and announcements.
-            <br class="hidden md:block">No technical background needed.
-        </p>
-        
-        <!-- Primary Search -->
-        <div class="max-w-2xl mx-auto">
-            <div class="search-hero">
-                <input 
-                    type="text" 
-                    id="heroSearch"
-                    placeholder="Ask me anything: 'What is ChatGPT?' or 'Latest from OpenAI'"
-                    class="search-input-large"
-                />
-                <button id="heroSearchBtn" class="search-btn-large">
-                    <i class="fas fa-search"></i> 
-                    <span class="hidden md:inline">Search</span>
-                </button>
-            </div>
-            
-            <!-- Quick Suggestions -->
-            <div class="quick-searches">
-                <span class="label text-blue-100">Try:</span>
-                <button class="suggestion-chip" onclick="quickSearch('today')">What's new today?</button>
-                <button class="suggestion-chip" onclick="quickSearch('openai')">OpenAI updates</button>
-                <button class="suggestion-chip" onclick="quickSearch('image ai')">Image AI tools</button>
-            </div>
-        </div>
+        <p class="text-gray-400">Tracking 28 AI sources across official blogs, news, research, and community</p>
     </div>
-</section>
+</header>
 
-<!-- Loading Indicator -->
-<div id="loadingIndicator" class="loader-container">
-    <i class="fas fa-robot loader-icon"></i>
-    <div class="loader"></div>
-    <div class="loader-text">Loading AI updates</div>
-    <div class="loader-subtext loader-dots">Please wait</div>
-</div>
-
-<!-- Three Column Layout -->
-<section id="mainContent" class="main-content hidden">
-    <div class="container mx-auto px-4 py-8">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-            
-            <!-- Column 1: Today's Highlights -->
-            <div class="content-column">
-                <div class="column-header">
-                    <span class="icon">⚡</span>
-                    <h2>Today's Highlights</h2>
-                    <span class="count" id="todayCount">...</span>
-                </div>
-                <p class="description">Most important news from the last 24 hours</p>
-                
-                <div id="todayArticles" class="article-list">
-                    <!-- Loaded dynamically -->
-                </div>
-                
-                <button class="view-all-btn" onclick="viewAllToday()">
-                    View All Today's Updates →
-                </button>
-            </div>
-            
-            <!-- Column 2: By Company -->
-            <div class="content-column">
-                <div class="column-header">
-                    <span class="icon">🏢</span>
-                    <h2>By Company</h2>
-                </div>
-                <p class="description">Follow updates from specific AI companies</p>
-                
-                <div id="companiesList" class="company-list">
-                    <!-- Loaded dynamically -->
-                </div>
-                
-                <button class="view-all-btn" onclick="viewAllCompanies()">
-                    See All Companies →
-                </button>
-            </div>
-            
-            <!-- Column 3: By Topic -->
-            <div class="content-column">
-                <div class="column-header">
-                    <span class="icon">📚</span>
-                    <h2>By Topic</h2>
-                </div>
-                <p class="description">Browse by what interests you</p>
-                
-                <div id="topicsList" class="topic-list">
-                    <!-- Loaded dynamically -->
-                </div>
-                
-                <button class="view-all-btn" onclick="viewAllTopics()">
-                    Browse All Topics →
-                </button>
-            </div>
-            
-        </div>
-    </div>
-</section>
-
-<!-- Detail View (Hidden by default) -->
-<section id="detailView" class="detail-view hidden">
-    <div class="container mx-auto px-4 py-8">
-        <!-- Back Button -->
-        <button onclick="backToHome()" class="back-btn">
-            <i class="fas fa-arrow-left"></i> Back to Home
-        </button>
-        
-        <!-- Detail Content -->
-        <div id="detailContent" class="mt-6">
-            <!-- Loaded dynamically -->
-        </div>
-    </div>
-</section>
-
-<!-- Help Section -->
-<section class="help-section">
-    <div class="container mx-auto px-4 py-8">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="help-card">
-                <h3>🤔 New to AI?</h3>
-                <p>Start with our beginner's guide to understand what AI is.</p>
-                <button class="secondary-btn" onclick="showGlossary()">View AI Glossary</button>
-            </div>
-            <div class="help-card">
-                <h3>❓ Need Help?</h3>
-                <p>Not sure where to start? Try our guided tour.</p>
-                <button class="secondary-btn" onclick="startTour()">Take Tour</button>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- Floating Help Button -->
-<button class="floating-help-btn" onclick="toggleHelp()" title="Need help?">
-    <i class="fas fa-question-circle"></i>
-</button>
-
-<!-- Help Panel (Slides in from right) -->
-<aside id="helpPanel" class="help-panel">
-    <div class="help-panel-header">
-        <h3>Help & Guide</h3>
-        <button onclick="toggleHelp()" class="close-btn">
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
-    <div class="help-panel-content">
-        <div class="help-section-content">
-            <h4>On This Page:</h4>
-            <ul class="help-list">
-                <li>
-                    <strong>Today's Highlights</strong> - 
-                    The most important news from the last 24 hours
-                </li>
-                <li>
-                    <strong>By Company</strong> - 
-                    See updates from specific AI companies like OpenAI or Google
-                </li>
-                <li>
-                    <strong>By Topic</strong> - 
-                    Browse articles by categories like Chatbots or Image AI
-                </li>
-            </ul>
-        </div>
-        
-        <div class="help-section-content">
-            <h4>Understanding Badges:</h4>
-            <div class="badge-examples">
-                <span class="source-badge official">Official</span>
-                <span class="text-sm ml-2">- Direct from the company</span>
-            </div>
-            <div class="badge-examples">
-                <span class="source-badge news">News</span>
-                <span class="text-sm ml-2">- From news sites</span>
-            </div>
-            <div class="badge-examples">
-                <span class="source-badge research">Research</span>
-                <span class="text-sm ml-2">- Academic papers</span>
-            </div>
-        </div>
-        
-        <div class="help-section-content">
-            <h4>Quick Actions:</h4>
-            <button onclick="quickSearch('what is ai')" class="help-action-btn">
-                Learn: What is AI?
-            </button>
-            <button onclick="viewAllToday()" class="help-action-btn">
-                Show me today's news
-            </button>
-            <button onclick="startTour()" class="help-action-btn">
-                Take a guided tour
+<!-- Search Bar -->
+<section class="search-section">
+    <div class="container mx-auto px-4 py-4">
+        <div class="search-container">
+            <input 
+                type="text" 
+                id="globalSearch"
+                placeholder="Search across all articles..."
+                class="search-input"
+            />
+            <button id="searchBtn" class="search-btn">
+                <i class="fas fa-search"></i>
             </button>
         </div>
     </div>
-</aside>
+</section>
+
+<!-- Tab Navigation -->
+<section class="tabs-section">
+    <div class="container mx-auto px-4">
+        <div class="tabs-container">
+            <button class="tab active" data-tab="official">
+                <span class="tab-icon">🟢</span>
+                <span class="tab-label">Official Blogs</span>
+                <span class="tab-badge" id="badge-official">0</span>
+            </button>
+            <button class="tab" data-tab="news">
+                <span class="tab-icon">🔵</span>
+                <span class="tab-label">News Sites</span>
+                <span class="tab-badge" id="badge-news">0</span>
+            </button>
+            <button class="tab" data-tab="research">
+                <span class="tab-icon">🟣</span>
+                <span class="tab-label">Research</span>
+                <span class="tab-badge" id="badge-research">0</span>
+            </button>
+            <button class="tab" data-tab="community">
+                <span class="tab-icon">🟠</span>
+                <span class="tab-label">Community</span>
+                <span class="tab-badge" id="badge-community">0</span>
+            </button>
+            <button class="tab" data-tab="tools">
+                <span class="tab-icon">🔷</span>
+                <span class="tab-label">Tools</span>
+                <span class="tab-badge" id="badge-tools">0</span>
+            </button>
+        </div>
+    </div>
+</section>
+
+<!-- Filters Bar -->
+<section class="filters-section">
+    <div class="container mx-auto px-4 py-4">
+        <div class="filters-container">
+            <div class="filter-group">
+                <label for="dateFilter" class="filter-label">
+                    <i class="far fa-calendar"></i> Date Range
+                </label>
+                <select id="dateFilter" class="filter-select">
+                    <option value="all">All Time</option>
+                    <option value="24h">Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="categoryFilter" class="filter-label">
+                    <i class="fas fa-tag"></i> Category
+                </label>
+                <select id="categoryFilter" class="filter-select">
+                    <option value="all">All Categories</option>
+                    <option value="LLMs & Foundation Models">LLMs & Foundation Models</option>
+                    <option value="AI Tools & Platforms">AI Tools & Platforms</option>
+                    <option value="Open Source AI Projects">Open Source</option>
+                    <option value="AI Research & Papers">Research & Papers</option>
+                    <option value="AI Agents & Automation">Agents & Automation</option>
+                    <option value="AI in Development">AI in Development</option>
+                    <option value="Multimodal AI">Multimodal AI</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="sortFilter" class="filter-label">
+                    <i class="fas fa-sort"></i> Sort By
+                </label>
+                <select id="sortFilter" class="filter-select">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                </select>
+            </div>
+            
+            <div class="filter-stats">
+                <span id="articleCount" class="text-gray-400">0 articles</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Articles Grid -->
+<section class="articles-section">
+    <div class="container mx-auto px-4 py-6">
+        <div id="articlesGrid" class="articles-grid">
+            <!-- Articles will be rendered here -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state hidden">
+            <i class="fas fa-inbox text-6xl text-gray-600 mb-4"></i>
+            <p class="text-xl text-gray-400 mb-2">No articles found</p>
+            <p class="text-gray-500">Try adjusting your filters or search query</p>
+        </div>
+    </div>
+</section>
+
+<!-- Pagination -->
+<section class="pagination-section">
+    <div class="container mx-auto px-4 py-6">
+        <div class="pagination-container">
+            <button id="prevPage" class="pagination-btn">
+                <i class="fas fa-chevron-left"></i>
+                <span class="hidden md:inline ml-2">Previous</span>
+            </button>
+            
+            <div class="pagination-info">
+                <span id="pageInfo" class="text-gray-300">Page 1 of 1</span>
+            </div>
+            
+            <button id="nextPage" class="pagination-btn">
+                <span class="hidden md:inline mr-2">Next</span>
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</section>
 
 <!-- Footer -->
 <footer class="bg-gray-800 border-t border-gray-700 mt-16">
@@ -225,6 +169,34 @@
         <p class="mt-2">Built With ❤️ By Pulkit Tyagi</p>
     </div>
 </footer>
+
+<!-- Floating Overview Button -->
+<button id="overviewBtn" class="floating-overview-btn" title="Content Overview">
+    <i class="fas fa-chart-bar"></i>
+</button>
+
+<!-- Overview Modal -->
+<div id="overviewModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="text-2xl font-bold text-white">
+                <i class="fas fa-chart-bar text-blue-500 mr-2"></i>Content Overview
+            </h2>
+            <button id="closeOverview" class="modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body" id="overviewContent">
+            <!-- Overview stats will be rendered here -->
+        </div>
+    </div>
+</div>
+
+<!-- Loading Indicator -->
+<div id="loadingIndicator" class="loading-overlay hidden">
+    <div class="loading-spinner"></div>
+    <p class="loading-text">Loading AI updates from 28 sources...</p>
+</div>
 
 <!-- JavaScript -->
 <script src="/static/app.js"></script>
