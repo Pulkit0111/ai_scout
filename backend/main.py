@@ -64,7 +64,7 @@ async def get_feeds(filters: str = None):
     
     Query Parameters:
         filters: Optional comma-separated filters (e.g., "24h,LLMs & Foundation Models")
-                 Supports time filters (24h, 7d) and category names
+                 Supports time filters (24h, 7d, 30d) and category names
     """
     try:
         # Fetch all articles
@@ -84,6 +84,8 @@ async def get_feeds(filters: str = None):
                     time_filter = 1
                 elif f == "7d":
                     time_filter = 7
+                elif f == "30d":
+                    time_filter = 30
                 elif f in CATEGORIES:
                     category_filters.append(f)
         
