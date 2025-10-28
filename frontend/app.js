@@ -262,7 +262,7 @@ function displayArticles() {
         return;
     }
     
-    articleCount.textContent = `${articlesToDisplay.length} articles`;
+    articleCount.textContent = `${articlesToDisplay.length} curated articles`;
     
     articlesToDisplay.forEach((article, index) => {
         const articleCard = createArticleCard(article, index);

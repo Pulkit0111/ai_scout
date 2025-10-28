@@ -213,7 +213,7 @@ def generate_newsletter_pdf(categorized_articles: Dict[str, List[Dict]]) -> Byte
     elements.append(title)
     
     # Subtitle
-    subtitle = Paragraph("Your Weekly AI Intelligence Digest", subtitle_style)
+    subtitle = Paragraph("Your AI Research & Updates Digest", subtitle_style)
     elements.append(subtitle)
     
     # Date and edition
