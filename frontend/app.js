@@ -71,6 +71,8 @@ function initDOM() {
         articlesGrid: document.getElementById('articlesGrid'),
         emptyState: document.getElementById('emptyState'),
         articleCount: document.getElementById('articleCount'),
+        searchLoader: document.getElementById('searchLoader'),
+        searchLoaderText: document.getElementById('searchLoaderText'),
         // Pagination
         prevPage: document.getElementById('prevPage'),
         nextPage: document.getElementById('nextPage'),
@@ -240,12 +242,13 @@ async function performSearch() {
     if (!query) {
         // If empty, just show all articles for current tab
         AppState.filters.searchQuery = '';
+        AppState.searchResults = null;
         renderArticles();
         return;
     }
     
-    // Show loading
-    showLoading('Searching with AI semantic search...');
+    // Show inline search loader with rotating messages
+    showSearchLoader();
     
     try {
         // Use backend semantic search API
@@ -254,16 +257,19 @@ async function performSearch() {
         
         const data = await response.json();
         
+        // Limit to max 6 articles (backend already filters to >=75%)
+        const limitedResults = (data.articles || []).slice(0, 6);
+        
         // Store search results temporarily
-        AppState.searchResults = data.articles || [];
+        AppState.searchResults = limitedResults;
         AppState.filters.searchQuery = query;
         AppState.pagination.currentPage = 1;
         
-        hideLoading();
+        hideSearchLoader();
         renderArticles();
     } catch (error) {
         console.error('Semantic search failed:', error);
-        hideLoading();
+        hideSearchLoader();
         showError('Search failed. Try a different query or check your connection.');
     }
 }
@@ -373,7 +379,8 @@ function renderArticles() {
     
     // Update count with search indicator
     if (AppState.searchResults !== null) {
-        elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''} (semantic search)`;
+        const maxShown = Math.min(totalArticles, 6);
+        elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''} (showing top ${maxShown} with ≥75% relevance)`;
         elements.articleCount.style.color = '#3b82f6'; // Blue to indicate search mode
     } else {
         elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''}`;
@@ -417,9 +424,15 @@ function createArticleCard(article) {
     const summary = stripHtml(article.summary || '').substring(0, 200);
     const date = formatDate(article.published_date);
     
+    // Show relevance score if this is a search result
+    const relevanceScore = article.relevance_score ? Math.round(article.relevance_score * 100) : null;
+    
     return `
         <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="article-card">
-            <span class="article-source ${sourceType}">${sourceName}</span>
+            <div class="article-header">
+                <span class="article-source ${sourceType}">${sourceName}</span>
+                ${relevanceScore ? `<span class="article-relevance"><i class="fas fa-brain"></i> ${relevanceScore}% Match</span>` : ''}
+            </div>
             <h3 class="article-title">${escapeHtml(article.title)}</h3>
             <p class="article-summary">${escapeHtml(summary)}${summary.length >= 200 ? '...' : ''}</p>
             <div class="article-meta">
@@ -633,6 +646,49 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// ===== Search Loader with Rotating Messages =====
+let searchLoaderInterval = null;
+const searchMessages = [
+    'Analyzing with AI...',
+    'Understanding your query...',
+    'Comparing embeddings...',
+    'Finding relevant articles...',
+    'Calculating relevance scores...',
+        'Almost there...'
+    ];
+    
+function showSearchLoader() {
+    // Hide articles grid and empty state
+    elements.articlesGrid.style.display = 'none';
+    elements.emptyState.classList.add('hidden');
+    
+    // Show search loader
+    elements.searchLoader.classList.remove('hidden');
+    
+    // Start rotating messages
+    let messageIndex = 0;
+    elements.searchLoaderText.textContent = searchMessages[0];
+    
+    searchLoaderInterval = setInterval(() => {
+        messageIndex = (messageIndex + 1) % searchMessages.length;
+        elements.searchLoaderText.textContent = searchMessages[messageIndex];
+    }, 1500); // Change message every 1.5 seconds
+}
+
+function hideSearchLoader() {
+    // Clear interval
+    if (searchLoaderInterval) {
+        clearInterval(searchLoaderInterval);
+        searchLoaderInterval = null;
+    }
+    
+    // Hide search loader
+    elements.searchLoader.classList.add('hidden');
+    
+    // Show articles grid again
+    elements.articlesGrid.style.display = '';
 }
 
 // ===== UI State Functions =====
