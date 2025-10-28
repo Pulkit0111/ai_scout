@@ -4,11 +4,12 @@ AI Scout is a web-based application that aggregates the latest AI news and resea
 
 ## Features
 
-- 📰 **RSS Feed Aggregation**: Fetches latest articles from multiple AI-focused sources
+- 📰 **RSS Feed Aggregation**: Fetches up to 50 articles per source for comprehensive historical coverage
 - 🏷️ **Smart Categorization**: Automatically categorizes articles into 7 AI-focused categories
 - 🔍 **Natural Language Search**: Search articles using keywords or natural language queries powered by OpenAI
-- 📊 **Weekly Summary Dashboard**: View statistics and highlights from the past 7 days
-- ⏱️ **Time Filters**: Filter articles from the last 24 hours
+- 🏷️ **Multi-Filter System**: Combine category and time filters (Last 24 Hours, Last 7 Days) with tag-style UI
+- 📊 **Weekly Summary Dashboard**: Dedicated tab with statistics, category breakdown, top sources, and highlights from the past 7 days
+- 📑 **Tab Navigation**: Switch between Articles view and Weekly Summary view
 - 🎨 **Modern UI**: Clean, responsive interface built with Tailwind CSS
 - 📄 **Professional PDF Newsletter**: Generate beautifully formatted PDF newsletters with branding
 - 🔄 **Real-time Updates**: Refresh feeds to get the latest articles
@@ -136,26 +137,42 @@ You can view the interactive API documentation at:
 
 1. **Start the server** using `./start_backend.sh`
 2. **Open your browser** to `http://localhost:8000`
-3. **View Weekly Summary**: See statistics and top highlights from the past 7 days at the top of the page
-4. **Filter articles** using the "Last 24 Hours" button to see only recent articles
-5. **Browse articles** by clicking on category tabs
-6. **Search articles** using the search bar:
+
+### Articles Tab (Default View)
+3. **Apply Filters**: Click on category tags (LLMs, AI Tools, etc.) and time filters (Last 24 Hours, Last 7 Days)
+   - Multiple filters can be active at once (combined with AND logic)
+   - Active filters show with a checkmark and blue/green background
+   - Click "Clear All" to reset filters
+4. **Search articles** using the search bar:
    - Simple keyword search: "GPT-4", "transformers"
    - Natural language: "recent research papers on multimodal AI agents"
    - Complex queries: "open source tools for LLM development from last week"
-7. **Refresh** to fetch the latest articles and update the weekly summary
-8. **Download PDF** to generate and download a professionally formatted newsletter
+5. **Browse articles** in the filtered grid view
 
-**Note:** The backend now serves both the API and the frontend web interface. No separate frontend server is needed!
+### Weekly Summary Tab
+6. **Click "Weekly Summary" tab** to view 7-day statistics:
+   - Total articles, categories, and sources
+   - Category breakdown with article counts
+   - Top contributing sources
+   - Featured highlights with full details
+
+### Other Features
+7. **Refresh** to fetch the latest articles (up to 50 per source)
+8. **Download PDF** to generate a professionally formatted newsletter
+
+**Note:** The backend serves both the API and the frontend web interface. No separate frontend server is needed!
 
 ## API Endpoints
 
 - `GET /` - Frontend web application (index.html)
 - `GET /static/*` - Static files (JavaScript, CSS, etc.)
 - `GET /api/feeds` - Get all feeds grouped by category
-- `GET /api/feeds?filter=24h` - Get feeds filtered by last 24 hours
+- `GET /api/feeds?filters=24h,LLMs & Foundation Models` - Get feeds with multiple filters (comma-separated)
+  - Supports time filters: `24h`, `7d`
+  - Supports category filters: Any category name from the categories list
+  - Filters are combined with AND logic
 - `GET /api/feeds/{category}` - Get feeds for a specific category
-- `GET /api/weekly-summary` - Get weekly summary with statistics and highlights
+- `GET /api/weekly-summary` - Get weekly summary with statistics and highlights (7-day data)
 - `GET /api/search?q={query}` - Search articles using keywords or natural language
 - `GET /api/newsletter/pdf` - Generate and download newsletter as PDF
 - `GET /api/categories` - Get list of available categories
