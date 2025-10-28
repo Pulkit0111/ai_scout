@@ -60,13 +60,32 @@
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        
+        .search-container {
+            position: relative;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .search-active {
+            border-color: #2563eb;
+            background-color: #1e293b;
+        }
+        
+        .search-results-badge {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        }
     </style>
 </head>
 <body class="bg-gray-900">
     <!-- Header -->
     <header class="bg-gray-800 shadow-lg border-b border-gray-700">
         <div class="container mx-auto px-4 py-6">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between flex-wrap gap-4">
                 <div class="flex items-center space-x-3">
                     <i class="fas fa-robot text-4xl text-blue-400"></i>
                     <div>
@@ -74,6 +93,27 @@
                         <p class="text-sm text-gray-400">Latest AI News & Research</p>
                     </div>
                 </div>
+                
+                <!-- Search Bar -->
+                <div class="search-container flex-1 max-w-2xl mx-4">
+                    <div class="relative">
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            placeholder="Search articles... (e.g., 'recent papers on multimodal AI')"
+                            class="search-input w-full bg-gray-700 text-white border-2 border-gray-600 rounded-lg px-4 py-2 pl-10 pr-10 focus:bg-gray-600 transition"
+                        />
+                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        <button 
+                            id="clearSearchBtn" 
+                            class="hidden absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition"
+                            title="Clear search"
+                        >
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
                 <div class="flex space-x-3">
                     <button id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition">
                         <i class="fas fa-sync-alt"></i>
@@ -103,6 +143,23 @@
         <!-- Loading Indicator -->
         <div id="loadingIndicator" class="flex justify-center items-center py-20">
             <div class="loader"></div>
+        </div>
+
+        <!-- Search Info Banner -->
+        <div id="searchInfoBanner" class="hidden mb-6 bg-gray-800 border-l-4 border-blue-500 rounded-lg p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-search text-blue-400 text-xl"></i>
+                    <div>
+                        <p class="text-white font-semibold">Search Results</p>
+                        <p id="searchQuery" class="text-gray-400 text-sm"></p>
+                    </div>
+                </div>
+                <button id="closeSearchBtn" class="text-gray-400 hover:text-white transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="searchMetadata" class="mt-2 text-xs text-gray-500"></div>
         </div>
 
         <!-- Articles Grid -->
