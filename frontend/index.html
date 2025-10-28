@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Scout - Latest AI News & Research</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .category-tab {
+            transition: all 0.3s ease;
+        }
+        
+        .category-tab.active {
+            background-color: #2563eb;
+            color: white;
+        }
+        
+        .category-tab:hover {
+            transform: translateY(-2px);
+        }
+        
+        .article-card {
+            transition: all 0.3s ease;
+        }
+        
+        .article-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2563eb;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+    <!-- Header -->
+    <header class="bg-gray-800 shadow-lg border-b border-gray-700">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-robot text-4xl text-blue-400"></i>
+                    <div>
+                        <h1 class="text-3xl font-bold text-white">AI Scout</h1>
+                        <p class="text-sm text-gray-400">Latest AI News & Research</p>
+                    </div>
+                </div>
+                <div class="flex space-x-3">
+                    <button id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                    <button id="downloadPdfBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition">
+                        <i class="fas fa-file-pdf"></i>
+                        <span>Download Newsletter</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Category Navigation -->
+        <div class="mb-8">
+            <div class="bg-gray-800 rounded-lg shadow-xl border border-gray-700 p-4">
+                <h2 class="text-lg font-semibold mb-4 text-gray-200">Categories</h2>
+                <div id="categoryTabs" class="flex flex-wrap gap-2">
+                    <!-- Category tabs will be dynamically loaded -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="flex justify-center items-center py-20">
+            <div class="loader"></div>
+        </div>
+
+        <!-- Articles Grid -->
+        <div id="articlesContainer" class="hidden">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 id="currentCategory" class="text-2xl font-bold text-white"></h2>
+                <span id="articleCount" class="text-gray-400"></span>
+            </div>
+            <div id="articlesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Articles will be dynamically loaded -->
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden text-center py-20">
+            <i class="fas fa-inbox text-6xl text-gray-600 mb-4"></i>
+            <h3 class="text-xl font-semibold text-gray-400">No articles found</h3>
+            <p class="text-gray-500 mt-2">Try refreshing or check back later.</p>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer id="footer" class="bg-gray-800 border-t border-gray-700 mt-16 hidden">
+        <div class="container mx-auto px-4 py-6 text-center text-gray-400">
+            <p>&copy; 2025 AI Scout. Aggregating the latest AI news and research.</p>
+            <p class="mt-2">Built With ❤️ By Pulkit Tyagi</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
+
