@@ -28,6 +28,7 @@ const SOURCE_TYPES = {
 // ===== Application State =====
 const AppState = {
     allArticles: [],
+    searchResults: null, // Null when not searching, array when search active
     currentTab: 'official',
     filters: {
         dateRange: 'all',
@@ -175,11 +176,16 @@ function switchTab(tabName) {
     AppState.currentTab = tabName;
     AppState.pagination.currentPage = 1;
     
+    // Clear search when switching tabs (optional - you can remove this if you want search to persist)
+    // AppState.searchResults = null;
+    // AppState.filters.searchQuery = '';
+    // elements.globalSearch.value = '';
+    
     // Update active tab
     elements.tabs.forEach(tab => {
         if (tab.dataset.tab === tabName) {
             tab.classList.add('active');
-        } else {
+    } else {
             tab.classList.remove('active');
         }
     });
@@ -215,6 +221,7 @@ function clearAllFilters() {
     AppState.filters.category = 'all';
     AppState.filters.sortBy = 'newest';
     AppState.filters.searchQuery = '';
+    AppState.searchResults = null; // Clear search results
     AppState.pagination.currentPage = 1;
     
     // Reset UI elements
@@ -227,15 +234,72 @@ function clearAllFilters() {
     renderArticles();
 }
 
-function performSearch() {
+async function performSearch() {
     const query = elements.globalSearch.value.trim();
-    AppState.filters.searchQuery = query;
-    AppState.pagination.currentPage = 1;
-    renderArticles();
+    
+    if (!query) {
+        // If empty, just show all articles for current tab
+        AppState.filters.searchQuery = '';
+        renderArticles();
+        return;
+    }
+    
+    // Show loading
+    showLoading('Searching with AI semantic search...');
+    
+    try {
+        // Use backend semantic search API
+        const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        // Store search results temporarily
+        AppState.searchResults = data.articles || [];
+        AppState.filters.searchQuery = query;
+        AppState.pagination.currentPage = 1;
+        
+        hideLoading();
+        renderArticles();
+    } catch (error) {
+        console.error('Semantic search failed:', error);
+        hideLoading();
+        showError('Search failed. Try a different query or check your connection.');
+    }
 }
 
 function getFilteredArticles() {
-    let articles = [...AppState.allArticles];
+    let articles;
+    
+    // If we have search results from semantic search, use those
+    if (AppState.searchResults !== null) {
+        articles = [...AppState.searchResults];
+        
+        // Still apply tab filter to search results
+        const tabSources = SOURCE_TYPES[AppState.currentTab];
+        articles = articles.filter(a => tabSources.includes(a.source));
+        
+        // Apply date range filter
+        if (AppState.filters.dateRange !== 'all') {
+            articles = filterByDate(articles, AppState.filters.dateRange);
+        }
+        
+        // Apply category filter
+        if (AppState.filters.category !== 'all') {
+            articles = articles.filter(a => a.category === AppState.filters.category);
+        }
+        
+        // Note: Semantic search results are already relevance-sorted by backend
+        // But we can still apply user's sort preference
+        if (AppState.filters.sortBy !== 'newest') {
+            articles = sortArticles(articles, AppState.filters.sortBy);
+        }
+        
+        return articles;
+    }
+    
+    // Normal filtering (no search active)
+    articles = [...AppState.allArticles];
     
     // 1. Filter by active tab (source type)
     const tabSources = SOURCE_TYPES[AppState.currentTab];
@@ -251,23 +315,7 @@ function getFilteredArticles() {
         articles = articles.filter(a => a.category === AppState.filters.category);
     }
     
-    // 4. Filter by search query
-    if (AppState.filters.searchQuery) {
-        const query = AppState.filters.searchQuery.toLowerCase().trim();
-        const queryWords = query.split(/\s+/); // Split by whitespace
-        
-        articles = articles.filter(a => {
-            const title = (a.title || '').toLowerCase();
-            const summary = (a.summary || '').toLowerCase();
-            const source = getSourceName(a.source).toLowerCase();
-            const searchText = `${title} ${summary} ${source}`;
-            
-            // Check if all query words are present in the search text
-            return queryWords.every(word => searchText.includes(word));
-        });
-    }
-    
-    // 5. Sort
+    // 4. Sort
     articles = sortArticles(articles, AppState.filters.sortBy);
     
     return articles;
@@ -323,8 +371,14 @@ function renderArticles() {
     const filteredArticles = getFilteredArticles();
     const totalArticles = filteredArticles.length;
     
-    // Update count
-    elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''}`;
+    // Update count with search indicator
+    if (AppState.searchResults !== null) {
+        elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''} (semantic search)`;
+        elements.articleCount.style.color = '#3b82f6'; // Blue to indicate search mode
+    } else {
+        elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''}`;
+        elements.articleCount.style.color = ''; // Reset to default
+    }
     
     // Paginate
     const totalPages = Math.ceil(totalArticles / AppState.pagination.perPage);
@@ -513,8 +567,8 @@ function generateOverviewStats() {
                     }).join('')}
                 </div>
             </div>
-        </div>
-    `;
+                </div>
+            `;
 }
 
 // ===== Helper Functions =====
@@ -582,8 +636,13 @@ function escapeHtml(text) {
 }
 
 // ===== UI State Functions =====
-function showLoading() {
-    elements.loadingIndicator.classList.remove('hidden');
+function showLoading(message = 'Loading AI updates...') {
+    const indicator = elements.loadingIndicator;
+    indicator.classList.remove('hidden');
+    const textElement = indicator.querySelector('.loading-text');
+    if (textElement) {
+        textElement.textContent = message;
+    }
 }
 
 function hideLoading() {
@@ -591,5 +650,29 @@ function hideLoading() {
 }
 
 function showError(message) {
-    alert(message); // Simple error display for now
+    // Create a toast notification
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md';
+    toast.innerHTML = `
+        <div class="flex items-start gap-3">
+            <i class="fas fa-exclamation-circle text-xl"></i>
+            <div class="flex-1">
+                <div class="font-semibold">${message}</div>
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" class="text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+                </div>
+            `;
+    
+    document.body.appendChild(toast);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.style.transition = 'opacity 0.3s';
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 5000);
 }
