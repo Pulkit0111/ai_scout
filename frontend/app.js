@@ -32,7 +32,6 @@ const articlesGrid = document.getElementById('articlesGrid');
 const articlesContainer = document.getElementById('articlesContainer');
 const loadingIndicator = document.getElementById('loadingIndicator');
 const emptyState = document.getElementById('emptyState');
-const refreshBtn = document.getElementById('refreshBtn');
 const currentCategoryTitle = document.getElementById('currentCategory');
 const articleCount = document.getElementById('articleCount');
 const searchInput = document.getElementById('searchInput');
@@ -50,14 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeTabs();
     initializeFilterListeners();
     fetchArticles(); // Fetch once and store
-    
-    // Event listeners
-    refreshBtn.addEventListener('click', () => {
-        fetchArticles(); // Re-fetch from server
-        if (weeklySummaryLoaded) {
-            fetchWeeklySummary();
-        }
-    });
     
     // Search event listeners
     searchInput.addEventListener('input', (e) => {
