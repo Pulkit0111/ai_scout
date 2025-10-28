@@ -6,6 +6,7 @@ AI Scout is a web-based application that aggregates the latest AI news and resea
 
 - 📰 **RSS Feed Aggregation**: Fetches latest articles from multiple AI-focused sources
 - 🏷️ **Smart Categorization**: Automatically categorizes articles into 7 AI-focused categories
+- 🔍 **Natural Language Search**: Search articles using keywords or natural language queries powered by OpenAI
 - 🎨 **Modern UI**: Clean, responsive interface built with Tailwind CSS
 - 📄 **PDF Newsletter**: Generate and download a formatted PDF newsletter
 - 🔄 **Real-time Updates**: Refresh feeds to get the latest articles
@@ -26,6 +27,7 @@ AI Scout is a web-based application that aggregates the latest AI news and resea
 - **FastAPI**: Modern, fast web framework for building APIs
 - **feedparser**: RSS feed parsing
 - **reportlab**: PDF generation
+- **OpenAI API**: Natural language query interpretation
 - **Python 3.8+**
 
 ### Frontend
@@ -66,17 +68,26 @@ ai_scout/
 ### Prerequisites
 - Python 3.8 or higher
 - pip (Python package installer)
+- OpenAI API key (required for natural language search)
 
 ### Quick Start (Recommended)
 
 The easiest way to run the application is using the provided startup script:
 
-1. **Start the Application**:
+1. **Set up your OpenAI API key**:
+```bash
+# Create a .env file in the project root
+echo "OPENAI_API_KEY=your_api_key_here" > .env
+```
+
+Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+
+2. **Start the Application**:
 ```bash
 ./start_backend.sh
 ```
 
-2. **Open your browser** and navigate to `http://localhost:8000`
+3. **Open your browser** and navigate to `http://localhost:8000`
 
 That's it! The backend serves both the API and the frontend at the same port.
 
@@ -100,7 +111,13 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Run the FastAPI server:
+4. Set up environment variables:
+```bash
+# Create a .env file in the backend directory or project root
+echo "OPENAI_API_KEY=your_api_key_here" > .env
+```
+
+5. Run the FastAPI server:
 ```bash
 python main.py
 ```
@@ -116,8 +133,12 @@ You can view the interactive API documentation at:
 1. **Start the server** using `./start_backend.sh`
 2. **Open your browser** to `http://localhost:8000`
 3. **Browse articles** by clicking on category tabs
-4. **Refresh** to fetch the latest articles
-5. **Download PDF** to generate and download a newsletter
+4. **Search articles** using the search bar:
+   - Simple keyword search: "GPT-4", "transformers"
+   - Natural language: "recent research papers on multimodal AI agents"
+   - Complex queries: "open source tools for LLM development from last week"
+5. **Refresh** to fetch the latest articles
+6. **Download PDF** to generate and download a newsletter
 
 **Note:** The backend now serves both the API and the frontend web interface. No separate frontend server is needed!
 
@@ -127,10 +148,41 @@ You can view the interactive API documentation at:
 - `GET /static/*` - Static files (JavaScript, CSS, etc.)
 - `GET /api/feeds` - Get all feeds grouped by category
 - `GET /api/feeds/{category}` - Get feeds for a specific category
+- `GET /api/search?q={query}` - Search articles using keywords or natural language
 - `GET /api/newsletter/pdf` - Generate and download newsletter as PDF
 - `GET /api/categories` - Get list of available categories
 
 ## Configuration
+
+### OpenAI API Key Setup
+
+The search feature requires an OpenAI API key for natural language query interpretation:
+
+1. Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Create a `.env` file in the project root or backend directory
+3. Add your key:
+```
+OPENAI_API_KEY=sk-your-api-key-here
+```
+
+**Note:** The search feature will fallback to simple keyword matching if no API key is provided, but natural language queries won't work.
+
+### Search Feature Details
+
+The search functionality supports two modes:
+
+1. **Keyword Search** (for simple queries with 1-3 words):
+   - Direct text matching across title, summary, source, and category
+   - Fast and doesn't require OpenAI API
+
+2. **Natural Language Search** (for complex queries):
+   - Uses OpenAI GPT-4o-mini to interpret user intent
+   - Extracts keywords, relevant categories, date filters, and content types
+   - Intelligent relevance scoring and ranking
+   - Examples:
+     - "recent research papers on multimodal AI agents with code examples"
+     - "open source tools for LLM development from this week"
+     - "GPT-4 and Claude performance comparison studies"
 
 ### Adding/Modifying RSS Feeds
 
@@ -182,6 +234,14 @@ If no articles are displayed:
 3. Check the browser console for errors
 4. Try clicking the "Refresh" button
 
+### Search Not Working
+If search is not returning results:
+1. Ensure your OpenAI API key is correctly set in the `.env` file
+2. Check that you have API credits available
+3. Simple keyword search will work without an API key
+4. Check backend logs for OpenAI API errors
+5. Verify the search query is not empty
+
 ### PDF Generation Issues
 If PDF download fails:
 1. Ensure `reportlab` is installed
@@ -202,14 +262,16 @@ This project is open source and available for educational purposes.
 
 ## Future Enhancements
 
+- [x] Add search functionality ✅
 - [ ] Add user authentication
 - [ ] Implement article bookmarking
 - [ ] Add email newsletter subscription
 - [ ] Include more RSS sources
-- [ ] Add search functionality
 - [ ] Implement article filtering by date
 - [ ] Add dark mode support
 - [ ] Store articles in a database for history
+- [ ] Add search history and saved searches
+- [ ] Implement semantic search with embeddings
 
 ## Support
 
