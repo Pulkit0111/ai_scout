@@ -256,17 +256,18 @@ def hybrid_search(query: str, articles: List[Dict]) -> List[Dict]:
     return results
 
 
-def filter_by_relevance_threshold(results: List[Dict], threshold_percent: float = SEARCH_RELEVANCE_DISPLAY_THRESHOLD) -> List[Dict]:
+def filter_by_relevance_threshold(results: List[Dict], threshold_percent: float = SEARCH_RELEVANCE_DISPLAY_THRESHOLD, max_results: int = 6) -> List[Dict]:
     """
     Filter search results by relevance percentage threshold.
-    Only return articles with relevance >= threshold.
+    Only return top N articles with relevance >= threshold.
     
     Args:
         results: List of articles with relevance_score
         threshold_percent: Minimum relevance percentage (0-100)
+        max_results: Maximum number of articles to return (default: 6)
     
     Returns:
-        Filtered list of articles
+        Filtered list of top articles
     """
     if not results:
         return []
@@ -286,8 +287,11 @@ def filter_by_relevance_threshold(results: List[Dict], threshold_percent: float 
             article["relevance_percentage"] = round(percentage)
             filtered.append(article)
     
-    print(f"Filtered to {len(filtered)} articles with relevance >= {threshold_percent}%")
-    return filtered
+    # Limit to top N results
+    top_results = filtered[:max_results]
+    
+    print(f"Filtered to {len(filtered)} articles with relevance >= {threshold_percent}%, returning top {len(top_results)}")
+    return top_results
 
 
 def search_articles(query: str, articles: List[Dict]) -> Dict:

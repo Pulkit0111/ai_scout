@@ -808,12 +808,12 @@ function displaySearchResults(data) {
         return;
     }
     
-    // Display all search results (filtered to >= 75% relevance by backend)
+    // Display search results (top 6 with >= 75% relevance)
     const totalResults = searchResults.length;
     if (totalResults === 1) {
-        articleCount.textContent = `${totalResults} highly relevant result found`;
+        articleCount.textContent = `${totalResults} highly relevant result`;
     } else {
-        articleCount.textContent = `${totalResults} highly relevant results (≥75% relevance)`;
+        articleCount.textContent = `Top ${totalResults} results (≥75% relevance)`;
     }
     
     searchResults.forEach((article, index) => {
