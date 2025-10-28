@@ -25,7 +25,7 @@ def fetch_feed(url: str, source_name: str) -> List[Dict]:
     try:
         feed = feedparser.parse(url)
         
-        for entry in feed.entries[:10]:  # Limit to 10 most recent articles per feed
+        for entry in feed.entries[:50]:  # Fetch up to 50 articles per feed for more historical data
             article = {
                 "title": entry.get("title", "No Title"),
                 "link": entry.get("link", ""),
