@@ -56,9 +56,12 @@ DEFAULT_CATEGORY = "AI Research & Papers"
 # OpenAI API Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-4o-mini"  # Cost-effective and fast model
+OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"  # Embedding model for semantic search
 OPENAI_TEMPERATURE = 0.3  # Lower temperature for consistent results
 
 # Search Configuration
 SEARCH_SIMPLE_QUERY_THRESHOLD = 3  # Word count threshold for simple vs complex queries
 SEARCH_MAX_RESULTS = 50  # Maximum number of search results to return
+SEARCH_SEMANTIC_THRESHOLD = 0.45  # Minimum similarity score for semantic search (0-1)
+SEARCH_USE_HYBRID = True  # Combine keyword and semantic search for best results
 
