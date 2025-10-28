@@ -335,12 +335,16 @@ function displaySearchResults(data) {
         return;
     }
     
-    articleCount.textContent = `${searchResults.length} results`;
+    // Limit to top 5 most relevant results
+    const topResults = searchResults.slice(0, 5);
+    const totalResults = searchResults.length;
+    
+    articleCount.textContent = `Showing top ${topResults.length} of ${totalResults} results`;
     
     // Find max score for percentage calculation
-    const maxScore = Math.max(...searchResults.map(a => a.relevance_score || 0));
+    const maxScore = Math.max(...topResults.map(a => a.relevance_score || 0));
     
-    searchResults.forEach((article, index) => {
+    topResults.forEach((article, index) => {
         const articleCard = createArticleCard(article, index);
         
         // Add relevance score indicator if available
