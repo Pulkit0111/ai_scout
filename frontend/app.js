@@ -115,16 +115,19 @@ function switchTab(tab) {
 function initializeFilterListeners() {
     categoryFilter.addEventListener('change', () => {
         currentFilters.category = categoryFilter.value;
+        currentPage = 1; // Reset to page 1 when filter changes
         applyFiltersClientSide();
     });
     
     timeRangeFilter.addEventListener('change', () => {
         currentFilters.timeRange = timeRangeFilter.value;
+        currentPage = 1; // Reset to page 1 when filter changes
         applyFiltersClientSide();
     });
     
     sourceFilter.addEventListener('change', () => {
         currentFilters.source = sourceFilter.value;
+        currentPage = 1; // Reset to page 1 when filter changes
         applyFiltersClientSide();
     });
     
@@ -291,14 +294,12 @@ function clearAllFilters() {
     timeRangeFilter.value = '';
     sourceFilter.value = '';
     
+    currentPage = 1; // Reset to page 1 when clearing filters
     applyFiltersClientSide();
 }
 
 // Apply filters client-side (no API call!)
 function applyFiltersClientSide() {
-    // Reset to page 1 when filters change
-    currentPage = 1;
-    
     let filteredArticles = [...allArticlesRaw];
     
     // Apply category filter
