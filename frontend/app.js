@@ -62,6 +62,7 @@ function initDOM() {
         dateFilter: document.getElementById('dateFilter'),
         categoryFilter: document.getElementById('categoryFilter'),
         sortFilter: document.getElementById('sortFilter'),
+        clearFilters: document.getElementById('clearFilters'),
         // Search
         globalSearch: document.getElementById('globalSearch'),
         searchBtn: document.getElementById('searchBtn'),
@@ -93,6 +94,7 @@ function setupEventListeners() {
     elements.dateFilter.addEventListener('change', applyFilters);
     elements.categoryFilter.addEventListener('change', applyFilters);
     elements.sortFilter.addEventListener('change', applyFilters);
+    elements.clearFilters.addEventListener('click', clearAllFilters);
     
     // Search
     elements.searchBtn.addEventListener('click', performSearch);
@@ -204,6 +206,24 @@ function applyFilters() {
     AppState.filters.category = elements.categoryFilter.value;
     AppState.filters.sortBy = elements.sortFilter.value;
     AppState.pagination.currentPage = 1;
+    renderArticles();
+}
+
+function clearAllFilters() {
+    // Reset filters to defaults
+    AppState.filters.dateRange = 'all';
+    AppState.filters.category = 'all';
+    AppState.filters.sortBy = 'newest';
+    AppState.filters.searchQuery = '';
+    AppState.pagination.currentPage = 1;
+    
+    // Reset UI elements
+    elements.dateFilter.value = 'all';
+    elements.categoryFilter.value = 'all';
+    elements.sortFilter.value = 'newest';
+    elements.globalSearch.value = '';
+    
+    // Re-render
     renderArticles();
 }
 
@@ -337,7 +357,7 @@ function createArticleCard(article) {
     const date = formatDate(article.published_date);
     
     return `
-        <div class="article-card">
+        <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="article-card">
             <span class="article-source ${sourceType}">${sourceName}</span>
             <h3 class="article-title">${escapeHtml(article.title)}</h3>
             <p class="article-summary">${escapeHtml(summary)}${summary.length >= 200 ? '...' : ''}</p>
@@ -348,10 +368,10 @@ function createArticleCard(article) {
                 </span>
                 ${article.category ? `<span class="article-category">${escapeHtml(article.category)}</span>` : ''}
             </div>
-            <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="article-link">
+            <span class="article-read-more">
                 Read article <i class="fas fa-arrow-right"></i>
-            </a>
-        </div>
+            </span>
+        </a>
     `;
 }
 
@@ -409,6 +429,15 @@ function generateOverviewStats() {
     // Recent articles (last 24h)
     const recent = filterByDate(AppState.allArticles, '24h').length;
     
+    // Top 5 most recent articles across all sections
+    const topArticles = [...AppState.allArticles]
+        .sort((a, b) => {
+            const dateA = new Date(a.published_date || 0);
+            const dateB = new Date(b.published_date || 0);
+            return dateB - dateA;
+        })
+        .slice(0, 5);
+    
     return `
         <div class="space-y-6">
             <div class="bg-gray-700 p-4 rounded-lg">
@@ -436,7 +465,7 @@ function generateOverviewStats() {
                         <span class="text-gray-300">🟠 Community</span>
                         <span class="text-white font-bold">${byType.community || 0}</span>
                     </div>
-                    <div class="flex justify-between items-center">
+                <div class="flex justify-between items-center">
                         <span class="text-gray-300">🔷 Tools</span>
                         <span class="text-white font-bold">${byType.tools || 0}</span>
                     </div>
@@ -455,6 +484,26 @@ function generateOverviewStats() {
                                 <span class="text-white font-bold">${count}</span>
                             </div>
                         `).join('')}
+                </div>
+            </div>
+            
+            <div class="bg-gray-700 p-4 rounded-lg">
+                <h3 class="text-lg font-bold text-white mb-3">
+                    <i class="fas fa-star text-yellow-500 mr-2"></i>Top Recent Articles
+                </h3>
+                <div class="space-y-3">
+                    ${topArticles.map(article => {
+                        const sourceType = getSourceType(article.source);
+                        const sourceName = getSourceName(article.source);
+                        return `
+                            <a href="${article.link}" target="_blank" rel="noopener noreferrer" 
+                               class="block p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition border-l-4 border-${sourceType === 'official' ? 'green' : sourceType === 'news' ? 'blue' : sourceType === 'research' ? 'purple' : sourceType === 'community' ? 'yellow' : 'cyan'}-500">
+                                <div class="text-xs text-gray-400 mb-1">${sourceName}</div>
+                                <div class="text-sm text-white font-medium line-clamp-2">${escapeHtml(article.title)}</div>
+                                <div class="text-xs text-gray-500 mt-1">${formatDate(article.published_date)}</div>
+                            </a>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         </div>

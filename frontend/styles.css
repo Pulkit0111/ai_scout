@@ -246,9 +246,29 @@ body {
 }
 
 .filter-stats {
-    margin-left: auto;
     font-size: 14px;
     font-weight: 500;
+}
+
+.clear-filters-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 16px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--bg-tertiary);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clear-filters-btn:hover {
+    background: var(--color-error);
+    border-color: var(--color-error);
+    color: white;
 }
 
 /* ===== Articles Section ===== */
@@ -261,6 +281,7 @@ body {
     grid-template-columns: 1fr;
     gap: 24px;
     transition: opacity 0.3s ease-in-out;
+    grid-auto-rows: 1fr;
 }
 
 @media (min-width: 768px) {
@@ -287,6 +308,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    height: 100%;
+    text-decoration: none;
+    color: inherit;
 }
 
 .article-card:hover {
@@ -378,20 +402,19 @@ body {
     color: var(--text-secondary);
 }
 
-.article-link {
+.article-read-more {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     color: var(--color-primary);
     font-weight: 600;
     font-size: 14px;
-    text-decoration: none;
     transition: all 0.2s;
+    margin-top: auto;
 }
 
-.article-link:hover {
-    color: #60a5fa;
-    transform: translateX(2px);
+.article-card:hover .article-read-more {
+    transform: translateX(4px);
 }
 
 /* ===== Empty State ===== */
