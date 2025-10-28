@@ -425,7 +425,13 @@ function createArticleCard(article) {
     const date = formatDate(article.published_date);
     
     // Show relevance score if this is a search result
-    const relevanceScore = article.relevance_score ? Math.round(article.relevance_score * 100) : null;
+    // Backend sends as decimal (0-1), so multiply by 100 to get percentage
+    // But if already > 1, it's already a percentage
+    let relevanceScore = null;
+    if (article.relevance_score) {
+        const score = parseFloat(article.relevance_score);
+        relevanceScore = score > 1 ? Math.round(score) : Math.round(score * 100);
+    }
     
     return `
         <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="article-card">
