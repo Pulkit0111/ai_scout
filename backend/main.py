@@ -15,6 +15,7 @@ from feed_aggregator import fetch_all_feeds, get_articles_by_category
 from categorizer import categorize_articles
 from newsletter_pdf import generate_newsletter_pdf
 from search_handler import search_articles
+from weekly_summary import generate_weekly_summary
 from config import CATEGORIES
 
 app = FastAPI(
@@ -181,6 +182,31 @@ async def search(q: str = ""):
     
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/weekly-summary")
+async def get_weekly_summary():
+    """
+    Get weekly summary with statistics and highlights
+    
+    Returns:
+        Dictionary with weekly statistics, highlights, and metadata
+    """
+    try:
+        # Fetch and categorize all articles
+        articles = fetch_all_feeds()
+        categorized = categorize_articles(articles)
+        
+        # Generate weekly summary
+        summary = generate_weekly_summary(categorized)
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "summary": summary
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
