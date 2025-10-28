@@ -7,8 +7,10 @@ AI Scout is a web-based application that aggregates the latest AI news and resea
 - 📰 **RSS Feed Aggregation**: Fetches latest articles from multiple AI-focused sources
 - 🏷️ **Smart Categorization**: Automatically categorizes articles into 7 AI-focused categories
 - 🔍 **Natural Language Search**: Search articles using keywords or natural language queries powered by OpenAI
+- 📊 **Weekly Summary Dashboard**: View statistics and highlights from the past 7 days
+- ⏱️ **Time Filters**: Filter articles from the last 24 hours
 - 🎨 **Modern UI**: Clean, responsive interface built with Tailwind CSS
-- 📄 **PDF Newsletter**: Generate and download a formatted PDF newsletter
+- 📄 **Professional PDF Newsletter**: Generate beautifully formatted PDF newsletters with branding
 - 🔄 **Real-time Updates**: Refresh feeds to get the latest articles
 
 ## Categories
@@ -54,11 +56,13 @@ ai_scout/
 │   ├── main.py                # FastAPI app and API routes
 │   ├── feed_aggregator.py     # RSS feed fetching logic
 │   ├── categorizer.py         # Article categorization
-│   ├── newsletter_pdf.py      # PDF newsletter generation
+│   ├── newsletter_pdf.py      # Professional PDF newsletter generation
+│   ├── weekly_summary.py      # Weekly summary statistics and filtering
+│   ├── search_handler.py      # Natural language search logic
 │   ├── config.py              # RSS feed URLs and config
 │   └── requirements.txt       # Python dependencies
 ├── frontend/
-│   ├── index.html             # Main HTML file
+│   ├── index.html             # Main HTML file with weekly summary UI
 │   └── app.js                 # JavaScript for API calls and interactions
 └── README.md
 ```
@@ -132,13 +136,15 @@ You can view the interactive API documentation at:
 
 1. **Start the server** using `./start_backend.sh`
 2. **Open your browser** to `http://localhost:8000`
-3. **Browse articles** by clicking on category tabs
-4. **Search articles** using the search bar:
+3. **View Weekly Summary**: See statistics and top highlights from the past 7 days at the top of the page
+4. **Filter articles** using the "Last 24 Hours" button to see only recent articles
+5. **Browse articles** by clicking on category tabs
+6. **Search articles** using the search bar:
    - Simple keyword search: "GPT-4", "transformers"
    - Natural language: "recent research papers on multimodal AI agents"
    - Complex queries: "open source tools for LLM development from last week"
-5. **Refresh** to fetch the latest articles
-6. **Download PDF** to generate and download a newsletter
+7. **Refresh** to fetch the latest articles and update the weekly summary
+8. **Download PDF** to generate and download a professionally formatted newsletter
 
 **Note:** The backend now serves both the API and the frontend web interface. No separate frontend server is needed!
 
@@ -147,7 +153,9 @@ You can view the interactive API documentation at:
 - `GET /` - Frontend web application (index.html)
 - `GET /static/*` - Static files (JavaScript, CSS, etc.)
 - `GET /api/feeds` - Get all feeds grouped by category
+- `GET /api/feeds?filter=24h` - Get feeds filtered by last 24 hours
 - `GET /api/feeds/{category}` - Get feeds for a specific category
+- `GET /api/weekly-summary` - Get weekly summary with statistics and highlights
 - `GET /api/search?q={query}` - Search articles using keywords or natural language
 - `GET /api/newsletter/pdf` - Generate and download newsletter as PDF
 - `GET /api/categories` - Get list of available categories
