@@ -110,6 +110,34 @@ function setupEventListeners() {
     elements.overviewModal.addEventListener('click', (e) => {
         if (e.target === elements.overviewModal) closeOverview();
     });
+    
+    // Keyboard navigation
+    document.addEventListener('keydown', handleKeyboardNavigation);
+}
+
+// ===== Keyboard Navigation =====
+function handleKeyboardNavigation(e) {
+    // Arrow keys for pagination
+    if (e.key === 'ArrowLeft' && !elements.prevPage.disabled) {
+        changePage(-1);
+    } else if (e.key === 'ArrowRight' && !elements.nextPage.disabled) {
+        changePage(1);
+    }
+    
+    // Escape key to close modal
+    if (e.key === 'Escape' && !elements.overviewModal.classList.contains('hidden')) {
+        closeOverview();
+    }
+    
+    // Number keys (1-5) for tab switching
+    const tabKeys = { '1': 'official', '2': 'news', '3': 'research', '4': 'community', '5': 'tools' };
+    if (tabKeys[e.key] && !e.ctrlKey && !e.metaKey) {
+        const activeElement = document.activeElement;
+        // Don't trigger if user is typing in an input
+        if (activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'TEXTAREA') {
+            switchTab(tabKeys[e.key]);
+        }
+    }
 }
 
 // ===== Initialize Application =====
@@ -276,22 +304,30 @@ function renderArticles() {
     const start = (AppState.pagination.currentPage - 1) * AppState.pagination.perPage;
     const paginatedArticles = filteredArticles.slice(start, start + AppState.pagination.perPage);
     
-    // Render articles
-    if (paginatedArticles.length === 0) {
-        elements.articlesGrid.innerHTML = '';
-        elements.emptyState.classList.remove('hidden');
-    } else {
-        elements.emptyState.classList.add('hidden');
-        elements.articlesGrid.innerHTML = paginatedArticles.map(article => 
-            createArticleCard(article)
-        ).join('');
-    }
+    // Add fade effect
+    elements.articlesGrid.style.opacity = '0';
     
-    // Update pagination
-    updatePagination(totalPages);
-    
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+        // Render articles
+        if (paginatedArticles.length === 0) {
+            elements.articlesGrid.innerHTML = '';
+            elements.emptyState.classList.remove('hidden');
+        } else {
+            elements.emptyState.classList.add('hidden');
+            elements.articlesGrid.innerHTML = paginatedArticles.map(article => 
+                createArticleCard(article)
+            ).join('');
+        }
+        
+        // Fade in
+        elements.articlesGrid.style.opacity = '1';
+        
+        // Update pagination
+        updatePagination(totalPages);
+        
+        // Scroll to top smoothly
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
 }
 
 function createArticleCard(article) {

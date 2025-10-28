@@ -260,6 +260,7 @@ body {
     display: grid;
     grid-template-columns: 1fr;
     gap: 24px;
+    transition: opacity 0.3s ease-in-out;
 }
 
 @media (min-width: 768px) {
