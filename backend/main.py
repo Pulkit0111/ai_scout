@@ -13,8 +13,8 @@ from pathlib import Path
 
 from feed_aggregator import fetch_all_feeds, get_articles_by_category
 from categorizer import categorize_articles
-from newsletter_pdf import generate_newsletter_pdf
 from search_handler import search_articles
+from content_overview import generate_content_overview
 from config import CATEGORIES
 
 app = FastAPI(
@@ -51,28 +51,69 @@ async def root():
         "endpoints": {
             "feeds": "/api/feeds",
             "category_feeds": "/api/feeds/{category}",
-            "newsletter_pdf": "/api/newsletter/pdf"
+            "search": "/api/search",
+            "content_overview": "/api/content-overview"
         }
     }
 
 
 @app.get("/api/feeds")
-async def get_feeds():
+async def get_feeds(filters: str = None):
     """
     Get all feeds grouped by category
+    
+    Query Parameters:
+        filters: Optional comma-separated filters (e.g., "24h,LLMs & Foundation Models")
+                 Supports time filters (24h, 7d, 30d) and category names
     """
     try:
         # Fetch all articles
         articles = fetch_all_feeds()
         
+        # Parse filters
+        active_filters = []
+        time_filter = None
+        category_filters = []
+        
+        if filters:
+            filter_list = [f.strip() for f in filters.split(',')]
+            active_filters = filter_list
+            
+            for f in filter_list:
+                if f == "24h":
+                    time_filter = 1
+                elif f == "7d":
+                    time_filter = 7
+                elif f == "30d":
+                    time_filter = 30
+                elif f in CATEGORIES:
+                    category_filters.append(f)
+        
+        # Apply time filter if specified
+        if time_filter:
+            from content_overview import filter_articles_by_days
+            articles = filter_articles_by_days(articles, days=time_filter)
+        
         # Categorize articles
         categorized = categorize_articles(articles)
+        
+        # Apply category filter if specified
+        if category_filters:
+            filtered_categorized = {}
+            for category in category_filters:
+                if category in categorized:
+                    filtered_categorized[category] = categorized[category]
+            categorized = filtered_categorized
+        
+        # Calculate total articles after filtering
+        total_filtered = sum(len(arts) for arts in categorized.values())
         
         return {
             "success": True,
             "timestamp": datetime.now().isoformat(),
-            "total_articles": len(articles),
-            "categories": categorized
+            "total_articles": total_filtered,
+            "categories": categorized,
+            "filters_applied": active_filters
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -100,33 +141,6 @@ async def get_category_feeds(category: str):
         }
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/newsletter/pdf")
-async def generate_newsletter():
-    """
-    Generate and download newsletter as PDF
-    """
-    try:
-        # Fetch and categorize articles
-        articles = fetch_all_feeds()
-        categorized = categorize_articles(articles)
-        
-        # Generate PDF
-        pdf_bytes = generate_newsletter_pdf(categorized)
-        
-        # Return PDF as response
-        filename = f"AI_Scout_Newsletter_{datetime.now().strftime('%Y%m%d')}.pdf"
-        
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}"
-            }
-        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -181,6 +195,31 @@ async def search(q: str = ""):
     
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/content-overview")
+async def get_content_overview():
+    """
+    Get content overview with statistics and highlights
+    
+    Returns:
+        Dictionary with content statistics, highlights, and metadata
+    """
+    try:
+        # Fetch and categorize all articles
+        articles = fetch_all_feeds()
+        categorized = categorize_articles(articles)
+        
+        # Generate content overview
+        summary = generate_content_overview(categorized)
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "summary": summary
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

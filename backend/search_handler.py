@@ -1,17 +1,22 @@
 """
-Search handler for natural language and keyword-based article search
+Search handler for semantic and keyword-based article search using OpenAI embeddings
 """
 
 import json
+import numpy as np
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 from openai import OpenAI
 from config import (
     OPENAI_API_KEY,
     OPENAI_MODEL,
+    OPENAI_EMBEDDING_MODEL,
     OPENAI_TEMPERATURE,
     SEARCH_SIMPLE_QUERY_THRESHOLD,
     SEARCH_MAX_RESULTS,
+    SEARCH_SEMANTIC_THRESHOLD,
+    SEARCH_RELEVANCE_DISPLAY_THRESHOLD,
+    SEARCH_USE_HYBRID,
     CATEGORIES
 )
 
@@ -25,159 +30,124 @@ if OPENAI_API_KEY:
         print(f"Warning: Failed to initialize OpenAI client: {e}")
 
 
-def interpret_query_with_llm(query: str) -> Optional[Dict]:
+def get_embedding(text: str) -> Optional[np.ndarray]:
     """
-    Use OpenAI to interpret a natural language search query.
+    Get embedding vector for text using OpenAI's embedding model.
     
     Args:
-        query: Natural language search query
+        text: Text to embed
     
     Returns:
-        Dictionary with extracted search criteria or None if failed
+        Numpy array of embedding vector or None if failed
     """
     if not client:
-        print("OpenAI client not initialized. Falling back to keyword search.")
         return None
     
-    system_prompt = """You are a search query analyzer for an AI news aggregator. 
-Extract structured search criteria from natural language queries.
-
-Available categories:
-- LLMs & Foundation Models
-- AI Tools & Platforms
-- Open Source AI Projects
-- AI Research & Papers
-- AI Agents & Automation
-- AI in Development
-- Multimodal AI
-
-Return a JSON object with:
-{
-    "keywords": ["keyword1", "keyword2"],  // Main search terms
-    "categories": ["Category1", "Category2"],  // Relevant categories from the list above
-    "date_filter": "recent|this_week|this_month|any",  // Time relevance
-    "content_type": "research|tool|project|news|any"  // Type of content
-}
-
-Examples:
-Query: "recent research papers on multimodal AI agents with code examples"
-{
-    "keywords": ["multimodal", "agents", "code", "research", "papers"],
-    "categories": ["Multimodal AI", "AI Agents & Automation", "AI Research & Papers"],
-    "date_filter": "recent",
-    "content_type": "research"
-}
-
-Query: "GPT-4 and Claude performance comparison"
-{
-    "keywords": ["GPT-4", "Claude", "performance", "comparison"],
-    "categories": ["LLMs & Foundation Models"],
-    "date_filter": "any",
-    "content_type": "any"
-}"""
-
     try:
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Query: {query}"}
-            ],
-            temperature=OPENAI_TEMPERATURE,
-            response_format={"type": "json_object"}
+        # Clean and truncate text to avoid token limits
+        text = text.strip()[:8000]  # Approximate token limit
+        
+        response = client.embeddings.create(
+            model=OPENAI_EMBEDDING_MODEL,
+            input=text
         )
         
-        result = json.loads(response.choices[0].message.content)
-        return result
+        embedding = np.array(response.data[0].embedding)
+        return embedding
     
     except Exception as e:
-        print(f"Error interpreting query with LLM: {e}")
+        print(f"Error generating embedding: {e}")
         return None
 
 
-def calculate_relevance_score(article: Dict, criteria: Dict) -> float:
+def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
     """
-    Calculate relevance score for an article based on search criteria.
+    Calculate cosine similarity between two vectors.
     
     Args:
-        article: Article dictionary
-        criteria: Search criteria from LLM or keyword extraction
+        vec1: First vector
+        vec2: Second vector
     
     Returns:
-        Relevance score (higher is more relevant)
+        Similarity score between 0 and 1
     """
-    score = 0.0
-    
-    # Combine all searchable text
-    title = article.get("title", "").lower()
-    summary = article.get("summary", "").lower()
-    source = article.get("source", "").lower()
-    category = article.get("category", "").lower()
-    
-    searchable_text = f"{title} {summary} {source}"
-    
-    # Keyword matching (higher weight for title matches)
-    keywords = criteria.get("keywords", [])
-    for keyword in keywords:
-        keyword_lower = keyword.lower()
+    try:
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
         
-        # Exact match in title (highest score)
-        if keyword_lower in title:
-            score += 10.0
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
         
-        # Exact match in summary
-        if keyword_lower in summary:
-            score += 5.0
+        similarity = dot_product / (norm1 * norm2)
+        # Normalize to 0-1 range (cosine similarity is -1 to 1)
+        return (similarity + 1) / 2
+    
+    except Exception as e:
+        print(f"Error calculating similarity: {e}")
+        return 0.0
+
+
+def semantic_search(query: str, articles: List[Dict], max_articles: int = 100) -> List[Dict]:
+    """
+    Perform semantic search using embeddings.
+    Optimized to process articles in batches and limit total processing.
+    
+    Args:
+        query: Search query
+        articles: List of articles to search
+        max_articles: Maximum number of articles to process (default: 100)
+    
+    Returns:
+        List of articles with semantic relevance scores
+    """
+    if not client:
+        print("OpenAI client not initialized. Cannot perform semantic search.")
+        return []
+    
+    # Get query embedding
+    query_embedding = get_embedding(query)
+    if query_embedding is None:
+        return []
+    
+    # Limit articles to process for performance
+    articles_to_process = articles[:max_articles]
+    
+    scored_articles = []
+    
+    print(f"Processing {len(articles_to_process)} articles for semantic search...")
+    
+    for idx, article in enumerate(articles_to_process):
+        # Combine title and summary for better semantic matching
+        # Title is more important, so weight it more
+        article_text = f"{article.get('title', '')} {article.get('title', '')} {article.get('summary', '')[:500]}"
         
-        # Match in source
-        if keyword_lower in source:
-            score += 2.0
-    
-    # Category matching
-    target_categories = criteria.get("categories", [])
-    article_category = article.get("category", "")
-    if article_category in target_categories:
-        score += 15.0
-    
-    # Date relevance
-    date_filter = criteria.get("date_filter", "any")
-    if date_filter != "any":
-        try:
-            article_date = datetime.strptime(article.get("published_date", ""), "%Y-%m-%d")
-            now = datetime.now()
-            
-            if date_filter == "recent":
-                # Last 7 days
-                if (now - article_date).days <= 7:
-                    score += 8.0
-            elif date_filter == "this_week":
-                # Last 7 days
-                if (now - article_date).days <= 7:
-                    score += 8.0
-            elif date_filter == "this_month":
-                # Last 30 days
-                if (now - article_date).days <= 30:
-                    score += 5.0
-        except:
-            pass
-    
-    # Content type matching
-    content_type = criteria.get("content_type", "any")
-    if content_type != "any":
-        type_keywords = {
-            "research": ["research", "paper", "arxiv", "study"],
-            "tool": ["tool", "platform", "app", "service"],
-            "project": ["project", "open source", "github", "library"],
-            "news": ["announce", "launch", "release", "news"]
-        }
+        # Get article embedding
+        article_embedding = get_embedding(article_text)
+        if article_embedding is None:
+            continue
         
-        if content_type in type_keywords:
-            for keyword in type_keywords[content_type]:
-                if keyword in searchable_text:
-                    score += 3.0
-                    break
+        # Calculate semantic similarity
+        similarity = cosine_similarity(query_embedding, article_embedding)
+        
+        # Filter by threshold
+        if similarity >= SEARCH_SEMANTIC_THRESHOLD:
+            article_copy = article.copy()
+            # Convert to percentage for consistency with keyword search
+            article_copy["relevance_score"] = similarity * 100
+            article_copy["search_method"] = "semantic"
+            scored_articles.append(article_copy)
+        
+        # Progress indicator
+        if (idx + 1) % 20 == 0:
+            print(f"Processed {idx + 1}/{len(articles_to_process)} articles...")
     
-    return score
+    print(f"Found {len(scored_articles)} relevant results")
+    
+    # Sort by similarity
+    scored_articles.sort(key=lambda x: x["relevance_score"], reverse=True)
+    
+    return scored_articles
 
 
 def simple_keyword_search(query: str, articles: List[Dict]) -> List[Dict]:
@@ -194,6 +164,9 @@ def simple_keyword_search(query: str, articles: List[Dict]) -> List[Dict]:
     query_lower = query.lower()
     keywords = query_lower.split()
     
+    # Also check for exact phrase
+    phrase = query_lower
+    
     results = []
     
     for article in articles:
@@ -204,8 +177,16 @@ def simple_keyword_search(query: str, articles: List[Dict]) -> List[Dict]:
         
         searchable_text = f"{title} {summary} {source} {category}"
         
-        # Calculate simple score
+        # Calculate score
         score = 0.0
+        
+        # Exact phrase matching (highest priority)
+        if phrase in title:
+            score += 25.0
+        elif phrase in summary:
+            score += 15.0
+        
+        # Individual keyword matching
         for keyword in keywords:
             if keyword in title:
                 score += 10.0
@@ -219,17 +200,104 @@ def simple_keyword_search(query: str, articles: List[Dict]) -> List[Dict]:
         if score > 0:
             article_copy = article.copy()
             article_copy["relevance_score"] = score
+            article_copy["search_method"] = "keyword"
             results.append(article_copy)
     
     # Sort by score
     results.sort(key=lambda x: x["relevance_score"], reverse=True)
     
-    return results[:SEARCH_MAX_RESULTS]
+    return results
+
+
+def hybrid_search(query: str, articles: List[Dict]) -> List[Dict]:
+    """
+    Combine semantic and keyword search for best results.
+    
+    Args:
+        query: Search query
+        articles: List of articles to search
+    
+    Returns:
+        List of articles with combined relevance scores
+    """
+    # Get both types of results
+    semantic_results = semantic_search(query, articles)
+    keyword_results = simple_keyword_search(query, articles)
+    
+    # Create lookup dictionaries
+    semantic_scores = {a.get("link", ""): a["relevance_score"] for a in semantic_results}
+    keyword_scores = {a.get("link", ""): a["relevance_score"] for a in keyword_results}
+    
+    # Combine scores with weighting
+    # Semantic: 70%, Keyword: 30%
+    combined_results = {}
+    all_links = set(semantic_scores.keys()) | set(keyword_scores.keys())
+    articles_dict = {a.get("link", ""): a for a in articles}
+    
+    for link in all_links:
+        if not link:
+            continue
+        
+        semantic_score = semantic_scores.get(link, 0) * 0.7
+        keyword_score = keyword_scores.get(link, 0) * 0.3
+        combined_score = semantic_score + keyword_score
+        
+        if combined_score > 0:
+            article = articles_dict.get(link, {}).copy()
+            article["relevance_score"] = combined_score
+            article["search_method"] = "hybrid"
+            article["semantic_score"] = semantic_scores.get(link, 0)
+            article["keyword_score"] = keyword_scores.get(link, 0)
+            combined_results[link] = article
+    
+    # Sort by combined score
+    results = sorted(combined_results.values(), key=lambda x: x["relevance_score"], reverse=True)
+    
+    return results
+
+
+def filter_by_relevance_threshold(results: List[Dict], threshold_percent: float = SEARCH_RELEVANCE_DISPLAY_THRESHOLD, max_results: int = 6) -> List[Dict]:
+    """
+    Filter search results by relevance percentage threshold.
+    Only return top N articles with relevance >= threshold.
+    
+    Args:
+        results: List of articles with relevance_score
+        threshold_percent: Minimum relevance percentage (0-100)
+        max_results: Maximum number of articles to return (default: 6)
+    
+    Returns:
+        Filtered list of top articles
+    """
+    if not results:
+        return []
+    
+    # Find max score for percentage calculation
+    max_score = max(a.get("relevance_score", 0) for a in results)
+    if max_score == 0:
+        return []
+    
+    # Filter by threshold
+    filtered = []
+    for article in results:
+        score = article.get("relevance_score", 0)
+        percentage = (score / max_score) * 100
+        
+        if percentage >= threshold_percent:
+            article["relevance_percentage"] = round(percentage)
+            filtered.append(article)
+    
+    # Limit to top N results
+    top_results = filtered[:max_results]
+    
+    print(f"Filtered to {len(filtered)} articles with relevance >= {threshold_percent}%, returning top {len(top_results)}")
+    return top_results
 
 
 def search_articles(query: str, articles: List[Dict]) -> Dict:
     """
-    Main search function that handles both simple and natural language queries.
+    Main search function that intelligently chooses search method.
+    Optimized for speed with smart pre-filtering.
     
     Args:
         query: Search query (can be keywords or natural language)
@@ -246,54 +314,63 @@ def search_articles(query: str, articles: List[Dict]) -> Dict:
             "search_type": "none"
         }
     
-    # Determine if query is simple or complex
+    print(f"Search query: '{query}' across {len(articles)} articles")
+    
+    # Determine search strategy
     word_count = len(query.split())
     is_simple_query = word_count <= SEARCH_SIMPLE_QUERY_THRESHOLD
     
-    # For simple queries, use direct keyword search
+    # For very simple queries (1-3 words), keyword search is often better and faster
     if is_simple_query:
         results = simple_keyword_search(query, articles)
         return {
             "query": query,
-            "total_results": len(results),
-            "articles": results,
+            "total_results": len(results[:SEARCH_MAX_RESULTS]),
+            "articles": results[:SEARCH_MAX_RESULTS],
             "search_type": "keyword"
         }
     
-    # For complex queries, try LLM interpretation
-    criteria = interpret_query_with_llm(query)
-    
-    # Fallback to keyword search if LLM fails
-    if not criteria:
+    # For complex queries, use semantic or hybrid search
+    # But first, do keyword filtering to narrow down the search space
+    if SEARCH_USE_HYBRID and client:
+        # Pre-filter with keyword search to reduce semantic search overhead
+        keyword_results = simple_keyword_search(query, articles)
+        
+        # If we have keyword matches, only do semantic search on those + recent articles
+        if keyword_results:
+            # Take top 30 keyword matches + 20 most recent articles (max ~40-50)
+            articles_to_search = list({a.get('link'): a for a in keyword_results[:30] + articles[:20]}.values())
+        else:
+            # No keyword matches, search most recent 40 articles
+            articles_to_search = articles[:40]
+        
+        print(f"Narrowed search to {len(articles_to_search)} articles")
+        results = hybrid_search(query, articles_to_search)
+        # Filter by relevance threshold (only show articles >= 75% relevance)
+        filtered_results = filter_by_relevance_threshold(results)
+        return {
+            "query": query,
+            "total_results": len(filtered_results),
+            "articles": filtered_results,
+            "search_type": "hybrid"
+        }
+    elif client:
+        # Semantic-only search with limited articles
+        results = semantic_search(query, articles, max_articles=50)
+        # Filter by relevance threshold (only show articles >= 75% relevance)
+        filtered_results = filter_by_relevance_threshold(results)
+        return {
+            "query": query,
+            "total_results": len(filtered_results),
+            "articles": filtered_results,
+            "search_type": "semantic"
+        }
+    else:
+        # Fallback to keyword search if no client
         results = simple_keyword_search(query, articles)
         return {
             "query": query,
-            "total_results": len(results),
-            "articles": results,
+            "total_results": len(results[:SEARCH_MAX_RESULTS]),
+            "articles": results[:SEARCH_MAX_RESULTS],
             "search_type": "keyword_fallback"
         }
-    
-    # Score and filter articles based on extracted criteria
-    scored_articles = []
-    for article in articles:
-        score = calculate_relevance_score(article, criteria)
-        
-        if score > 0:
-            article_copy = article.copy()
-            article_copy["relevance_score"] = score
-            scored_articles.append(article_copy)
-    
-    # Sort by relevance score, then by date
-    scored_articles.sort(
-        key=lambda x: (x["relevance_score"], x.get("published_date", "")),
-        reverse=True
-    )
-    
-    return {
-        "query": query,
-        "total_results": len(scored_articles[:SEARCH_MAX_RESULTS]),
-        "articles": scored_articles[:SEARCH_MAX_RESULTS],
-        "search_type": "natural_language",
-        "extracted_criteria": criteria
-    }
-
