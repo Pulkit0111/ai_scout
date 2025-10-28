@@ -602,11 +602,41 @@ function toggleHelp() {
 }
 
 function showGlossary() {
-    alert('AI Glossary feature coming soon! This will explain common AI terms in simple language.');
+    // Load glossary modal if not already loaded
+    if (!document.getElementById('glossaryModal')) {
+        fetch('/static/glossary.html')
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const modal = doc.getElementById('glossaryModal');
+                if (modal) {
+                    document.body.appendChild(modal);
+                    modal.classList.remove('hidden');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading glossary:', error);
+                alert('Glossary coming soon!');
+            });
+    } else {
+        document.getElementById('glossaryModal').classList.remove('hidden');
+    }
 }
 
 function startTour() {
-    alert('Interactive tour coming soon! This will guide you through the main features.');
+    // This function is overridden by onboarding.js
+    // Fallback if onboarding.js hasn't loaded yet
+    if (typeof window.startInteractiveTour !== 'undefined') {
+        window.startInteractiveTour();
+    } else {
+        alert('Loading tour...');
+        setTimeout(() => {
+            if (typeof window.startInteractiveTour !== 'undefined') {
+                window.startInteractiveTour();
+            }
+        }, 500);
+    }
 }
 
 // ===== First Visit Check =====
