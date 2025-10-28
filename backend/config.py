@@ -2,6 +2,12 @@
 Configuration file for RSS feed sources and categories
 """
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 # RSS Feed Sources
 RSS_FEEDS = {
     "huggingface": "https://huggingface.co/blog/feed.xml",
@@ -46,4 +52,13 @@ CATEGORIES = {
 
 # Default category for uncategorized articles
 DEFAULT_CATEGORY = "AI Research & Papers"
+
+# OpenAI API Configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = "gpt-4o-mini"  # Cost-effective and fast model
+OPENAI_TEMPERATURE = 0.3  # Lower temperature for consistent results
+
+# Search Configuration
+SEARCH_SIMPLE_QUERY_THRESHOLD = 3  # Word count threshold for simple vs complex queries
+SEARCH_MAX_RESULTS = 50  # Maximum number of search results to return
 

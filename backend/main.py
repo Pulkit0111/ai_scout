@@ -14,6 +14,7 @@ from pathlib import Path
 from feed_aggregator import fetch_all_feeds, get_articles_by_category
 from categorizer import categorize_articles
 from newsletter_pdf import generate_newsletter_pdf
+from search_handler import search_articles
 from config import CATEGORIES
 
 app = FastAPI(
@@ -139,6 +140,49 @@ async def get_categories():
         "success": True,
         "categories": list(CATEGORIES.keys())
     }
+
+
+@app.get("/api/search")
+async def search(q: str = ""):
+    """
+    Search articles using natural language or keywords
+    
+    Query Parameters:
+        q: Search query (can be keywords or natural language)
+    
+    Returns:
+        Dictionary with search results and metadata
+    """
+    try:
+        if not q or not q.strip():
+            raise HTTPException(status_code=400, detail="Search query parameter 'q' is required")
+        
+        # Fetch and categorize all articles
+        articles = fetch_all_feeds()
+        categorized = categorize_articles(articles)
+        
+        # Flatten categorized articles into a single list
+        all_articles = []
+        for category_articles in categorized.values():
+            all_articles.extend(category_articles)
+        
+        # Perform search
+        search_results = search_articles(q.strip(), all_articles)
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "query": search_results["query"],
+            "search_type": search_results["search_type"],
+            "total_results": search_results["total_results"],
+            "articles": search_results["articles"],
+            "extracted_criteria": search_results.get("extracted_criteria")
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

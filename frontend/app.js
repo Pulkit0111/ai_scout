@@ -4,6 +4,8 @@ const API_BASE_URL = window.location.origin;
 // State
 let allArticles = {};
 let currentCategory = 'all';
+let isSearchMode = false;
+let searchResults = [];
 
 // DOM Elements
 const categoryTabsContainer = document.getElementById('categoryTabs');
@@ -15,6 +17,9 @@ const refreshBtn = document.getElementById('refreshBtn');
 const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 const currentCategoryTitle = document.getElementById('currentCategory');
 const articleCount = document.getElementById('articleCount');
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const clearSearchBtn = document.getElementById('clearSearchBtn');
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,6 +33,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     downloadPdfBtn.addEventListener('click', () => {
         downloadNewsletter();
+    });
+    
+    // Search event listeners
+    searchInput.addEventListener('input', (e) => {
+        // Show/hide clear button based on input
+        if (e.target.value.trim()) {
+            clearSearchBtn.classList.remove('hidden');
+        } else {
+            clearSearchBtn.classList.add('hidden');
+        }
+    });
+    
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            performSearch(searchInput.value.trim());
+        }
+    });
+    
+    searchBtn.addEventListener('click', () => {
+        performSearch(searchInput.value.trim());
+    });
+    
+    clearSearchBtn.addEventListener('click', () => {
+        clearSearch();
     });
 });
 
@@ -264,5 +293,85 @@ function stripHtmlTags(html) {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
     return tmp.textContent || tmp.innerText || '';
+}
+
+// Search Functions
+
+async function performSearch(query) {
+    if (!query) {
+        clearSearch();
+        return;
+    }
+    
+    showLoading();
+    isSearchMode = true;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
+        
+        if (!response.ok) {
+            throw new Error('Search failed');
+        }
+        
+        const data = await response.json();
+        searchResults = data.articles || [];
+        
+        displaySearchResults(data);
+    } catch (error) {
+        console.error('Error performing search:', error);
+        showError('Search failed. Please try again.');
+        hideLoading();
+    }
+}
+
+function displaySearchResults(data) {
+    articlesGrid.innerHTML = '';
+    
+    currentCategoryTitle.textContent = 'Search Results';
+    
+    if (searchResults.length === 0) {
+        articleCount.textContent = 'No results found';
+        showEmpty();
+        return;
+    }
+    
+    // Limit to top 5 most relevant results
+    const topResults = searchResults.slice(0, 5);
+    const totalResults = searchResults.length;
+    
+    articleCount.textContent = `Showing top ${topResults.length} of ${totalResults} results`;
+    
+    // Find max score for percentage calculation
+    const maxScore = Math.max(...topResults.map(a => a.relevance_score || 0));
+    
+    topResults.forEach((article, index) => {
+        const articleCard = createArticleCard(article, index);
+        
+        // Add relevance score indicator if available
+        if (article.relevance_score && maxScore > 0) {
+            const percentage = Math.round((article.relevance_score / maxScore) * 100);
+            const scoreIndicator = document.createElement('div');
+            scoreIndicator.className = 'relevance-score text-sm mt-3 flex items-center gap-1';
+            scoreIndicator.innerHTML = `<i class="fas fa-star"></i> Relevance: ${percentage}%`;
+            articleCard.appendChild(scoreIndicator);
+        }
+        
+        articlesGrid.appendChild(articleCard);
+    });
+    
+    hideLoading();
+    articlesContainer.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+}
+
+function clearSearch() {
+    isSearchMode = false;
+    searchResults = [];
+    searchInput.value = '';
+    clearSearchBtn.classList.add('hidden');
+    searchInput.classList.remove('search-active');
+    
+    // Return to current category view
+    displayArticles();
 }
 
