@@ -6,7 +6,6 @@ let allArticles = {};
 let currentCategory = 'all';
 let isSearchMode = false;
 let searchResults = [];
-let searchDebounceTimer = null;
 
 // DOM Elements
 const categoryTabsContainer = document.getElementById('categoryTabs');
@@ -19,11 +18,8 @@ const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 const currentCategoryTitle = document.getElementById('currentCategory');
 const articleCount = document.getElementById('articleCount');
 const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
-const searchInfoBanner = document.getElementById('searchInfoBanner');
-const searchQuery = document.getElementById('searchQuery');
-const searchMetadata = document.getElementById('searchMetadata');
-const closeSearchBtn = document.getElementById('closeSearchBtn');
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -41,7 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Search event listeners
     searchInput.addEventListener('input', (e) => {
-        handleSearchInput(e.target.value);
+        // Show/hide clear button based on input
+        if (e.target.value.trim()) {
+            clearSearchBtn.classList.remove('hidden');
+        } else {
+            clearSearchBtn.classList.add('hidden');
+        }
     });
     
     searchInput.addEventListener('keypress', (e) => {
@@ -50,11 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    clearSearchBtn.addEventListener('click', () => {
-        clearSearch();
+    searchBtn.addEventListener('click', () => {
+        performSearch(searchInput.value.trim());
     });
     
-    closeSearchBtn.addEventListener('click', () => {
+    clearSearchBtn.addEventListener('click', () => {
         clearSearch();
     });
 });
@@ -138,11 +139,6 @@ async function fetchArticles() {
 // Display articles
 function displayArticles() {
     articlesGrid.innerHTML = '';
-    
-    // Hide search banner when in category mode
-    if (!isSearchMode) {
-        searchInfoBanner.classList.add('hidden');
-    }
     
     let articlesToDisplay = [];
     
@@ -301,29 +297,6 @@ function stripHtmlTags(html) {
 
 // Search Functions
 
-function handleSearchInput(value) {
-    // Show/hide clear button
-    if (value.trim()) {
-        clearSearchBtn.classList.remove('hidden');
-        searchInput.classList.add('search-active');
-    } else {
-        clearSearchBtn.classList.add('hidden');
-        searchInput.classList.remove('search-active');
-        
-        // If search is cleared, exit search mode
-        if (isSearchMode) {
-            clearSearch();
-        }
-        return;
-    }
-    
-    // Debounce search
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-        performSearch(value.trim());
-    }, 500);
-}
-
 async function performSearch(query) {
     if (!query) {
         clearSearch();
@@ -354,23 +327,6 @@ async function performSearch(query) {
 function displaySearchResults(data) {
     articlesGrid.innerHTML = '';
     
-    // Show search info banner
-    searchInfoBanner.classList.remove('hidden');
-    searchQuery.textContent = `"${data.query}"`;
-    
-    // Display search metadata
-    let metadataText = `Search type: ${data.search_type || 'keyword'}`;
-    if (data.extracted_criteria) {
-        const criteria = data.extracted_criteria;
-        if (criteria.categories && criteria.categories.length > 0) {
-            metadataText += ` | Categories: ${criteria.categories.join(', ')}`;
-        }
-        if (criteria.date_filter && criteria.date_filter !== 'any') {
-            metadataText += ` | Time: ${criteria.date_filter}`;
-        }
-    }
-    searchMetadata.textContent = metadataText;
-    
     currentCategoryTitle.textContent = 'Search Results';
     
     if (searchResults.length === 0) {
@@ -387,8 +343,8 @@ function displaySearchResults(data) {
         // Add relevance score indicator if available
         if (article.relevance_score) {
             const scoreIndicator = document.createElement('div');
-            scoreIndicator.className = 'text-xs text-blue-400 mt-2';
-            scoreIndicator.innerHTML = `<i class="fas fa-chart-line"></i> Relevance: ${Math.round(article.relevance_score)}`;
+            scoreIndicator.className = 'relevance-score text-sm mt-3 flex items-center gap-1';
+            scoreIndicator.innerHTML = `<i class="fas fa-star"></i> Relevance Score: ${Math.round(article.relevance_score)}`;
             articleCard.appendChild(scoreIndicator);
         }
         
@@ -406,10 +362,6 @@ function clearSearch() {
     searchInput.value = '';
     clearSearchBtn.classList.add('hidden');
     searchInput.classList.remove('search-active');
-    searchInfoBanner.classList.add('hidden');
-    
-    // Clear debounce timer
-    clearTimeout(searchDebounceTimer);
     
     // Return to current category view
     displayArticles();
