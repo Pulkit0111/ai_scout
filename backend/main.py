@@ -58,13 +58,21 @@ async def root():
 
 
 @app.get("/api/feeds")
-async def get_feeds():
+async def get_feeds(filter: str = None):
     """
     Get all feeds grouped by category
+    
+    Query Parameters:
+        filter: Optional filter for articles (e.g., "24h" for last 24 hours)
     """
     try:
         # Fetch all articles
         articles = fetch_all_feeds()
+        
+        # Apply time filter if requested
+        if filter == "24h":
+            from weekly_summary import filter_articles_by_days
+            articles = filter_articles_by_days(articles, days=1)
         
         # Categorize articles
         categorized = categorize_articles(articles)
@@ -73,7 +81,8 @@ async def get_feeds():
             "success": True,
             "timestamp": datetime.now().isoformat(),
             "total_articles": len(articles),
-            "categories": categorized
+            "categories": categorized,
+            "filter_applied": filter
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
