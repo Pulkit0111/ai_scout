@@ -1,535 +1,593 @@
-// API Base URL - use relative path since frontend is served by same server
+// AI Scout - Main Application JavaScript
+// API Base URL
 const API_BASE_URL = window.location.origin;
 
-// State - Store ALL articles client-side for filtering
-let allArticlesRaw = []; // Flat list of all articles
-let allArticlesByCategory = {}; // Articles grouped by category
-let activeTab = 'articles'; // 'articles' or 'weeklySummary'
-let isSearchMode = false;
-let searchResults = [];
-let weeklySummaryData = null;
-let weeklySummaryLoaded = false;
-
-// Current filter state
-let currentFilters = {
-    category: '',
-    timeRange: '',
-    source: ''
+// Application State
+const AppState = {
+    allArticles: [],
+    todayArticles: [],
+    companies: [],
+    currentView: 'home', // 'home', 'company', 'topic', 'today', 'search'
+    currentCompany: null,
+    currentTopic: null,
+    searchQuery: ''
 };
 
-// Pagination state
-const ARTICLES_PER_PAGE = 9;
-let currentPage = 1;
-let totalPages = 1;
+// Topics Configuration
+const TOPICS = [
+    { 
+        id: 'llms', 
+        name: 'Chatbots & Assistants', 
+        icon: '💬', 
+        desc: 'ChatGPT, Claude, Gemini',
+        category: 'LLMs & Foundation Models'
+    },
+    { 
+        id: 'image-ai', 
+        name: 'Image & Video AI', 
+        icon: '🎨', 
+        desc: 'DALL-E, Midjourney, Sora',
+        category: 'Multimodal AI'
+    },
+    { 
+        id: 'coding', 
+        name: 'Coding Tools', 
+        icon: '💻', 
+        desc: 'GitHub Copilot, Cursor',
+        category: 'AI in Development'
+    },
+    { 
+        id: 'research', 
+        name: 'Research Papers', 
+        icon: '📄', 
+        desc: 'Latest AI research',
+        category: 'AI Research & Papers'
+    },
+    { 
+        id: 'tools', 
+        name: 'AI Tools & Apps', 
+        icon: '🛠️', 
+        desc: 'Productivity tools',
+        category: 'AI Tools & Platforms'
+    },
+    { 
+        id: 'opensource', 
+        name: 'Open Source', 
+        icon: '🔓', 
+        desc: 'Hugging Face, PyTorch',
+        category: 'Open Source AI Projects'
+    }
+];
 
-// DOM Elements
-const articlesTab = document.getElementById('articlesTab');
-const weeklySummaryTab = document.getElementById('weeklySummaryTab');
-const articlesTabContent = document.getElementById('articlesTabContent');
-const weeklySummaryTabContent = document.getElementById('weeklySummaryTabContent');
-const categoryFilter = document.getElementById('categoryFilter');
-const timeRangeFilter = document.getElementById('timeRangeFilter');
-const sourceFilter = document.getElementById('sourceFilter');
-const clearFiltersBtn = document.getElementById('clearFiltersBtn');
-const activeFiltersDisplay = document.getElementById('activeFiltersDisplay');
-const activeFilterTags = document.getElementById('activeFilterTags');
-const articlesGrid = document.getElementById('articlesGrid');
-const articlesContainer = document.getElementById('articlesContainer');
-const loadingIndicator = document.getElementById('loadingIndicator');
-const emptyState = document.getElementById('emptyState');
-const currentCategoryTitle = document.getElementById('currentCategory');
-const articleCount = document.getElementById('articleCount');
-const searchInput = document.getElementById('searchInput');
-const searchBtn = document.getElementById('searchBtn');
-const clearSearchBtn = document.getElementById('clearSearchBtn');
-const paginationContainer = document.getElementById('paginationContainer');
-const prevPageBtn = document.getElementById('prevPageBtn');
-const nextPageBtn = document.getElementById('nextPageBtn');
-const pageNumbers = document.getElementById('pageNumbers');
-const weeklySummarySection = document.getElementById('weeklySummarySection');
-const weeklySummaryLoading = document.getElementById('weeklySummaryLoading');
-const statsGrid = document.getElementById('statsGrid');
-const highlightsContainer = document.getElementById('highlightsContainer');
-const categoryBreakdown = document.getElementById('categoryBreakdown');
-const topSources = document.getElementById('topSources');
-
-// Initialize app
-document.addEventListener('DOMContentLoaded', () => {
-    initializeTabs();
-    initializeFilterListeners();
-    initializePagination();
-    fetchArticles(); // Fetch once and store
-    
-    // Search event listeners
-    searchInput.addEventListener('input', (e) => {
-        if (e.target.value.trim()) {
-            clearSearchBtn.classList.remove('hidden');
-        } else {
-            clearSearchBtn.classList.add('hidden');
-        }
-    });
-    
-    searchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            performSearch(searchInput.value.trim());
-        }
-    });
-    
-    searchBtn.addEventListener('click', () => {
-        performSearch(searchInput.value.trim());
-    });
-    
-    clearSearchBtn.addEventListener('click', () => {
-        clearSearch();
-    });
+// ===== Initialization =====
+document.addEventListener('DOMContentLoaded', async () => {
+    await initializeApp();
+    setupEventListeners();
+    checkFirstVisit();
 });
 
-// Initialize tabs
-function initializeTabs() {
-    articlesTab.addEventListener('click', () => switchTab('articles'));
-    weeklySummaryTab.addEventListener('click', () => switchTab('weeklySummary'));
-}
-
-// Switch between tabs
-function switchTab(tab) {
-    activeTab = tab;
-    
-    if (tab === 'articles') {
-        articlesTab.classList.add('active');
-        weeklySummaryTab.classList.remove('active');
-        articlesTabContent.classList.add('active');
-        weeklySummaryTabContent.classList.remove('active');
-    } else {
-        articlesTab.classList.remove('active');
-        weeklySummaryTab.classList.add('active');
-        articlesTabContent.classList.remove('active');
-        weeklySummaryTabContent.classList.add('active');
-        
-        if (!weeklySummaryLoaded) {
-            fetchWeeklySummary();
-        }
-    }
-}
-
-// Initialize filter dropdown listeners
-function initializeFilterListeners() {
-    categoryFilter.addEventListener('change', () => {
-        currentFilters.category = categoryFilter.value;
-        currentPage = 1; // Reset to page 1 when filter changes
-        applyFiltersClientSide();
-    });
-    
-    timeRangeFilter.addEventListener('change', () => {
-        currentFilters.timeRange = timeRangeFilter.value;
-        currentPage = 1; // Reset to page 1 when filter changes
-        applyFiltersClientSide();
-    });
-    
-    sourceFilter.addEventListener('change', () => {
-        currentFilters.source = sourceFilter.value;
-        currentPage = 1; // Reset to page 1 when filter changes
-        applyFiltersClientSide();
-    });
-    
-    clearFiltersBtn.addEventListener('click', () => {
-        clearAllFilters();
-    });
-}
-
-// Initialize pagination
-function initializePagination() {
-    prevPageBtn.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            updateArticlesDisplay();
-        }
-    });
-    
-    nextPageBtn.addEventListener('click', () => {
-        if (currentPage < totalPages) {
-            currentPage++;
-            updateArticlesDisplay();
-        }
-    });
-}
-
-// Update pagination controls
-function updatePaginationControls(totalArticles) {
-    totalPages = Math.ceil(totalArticles / ARTICLES_PER_PAGE);
-    
-    // Show/hide pagination based on article count
-    if (totalArticles > ARTICLES_PER_PAGE) {
-        paginationContainer.classList.remove('hidden');
-    } else {
-        paginationContainer.classList.add('hidden');
-        return;
-    }
-    
-    // Update button states
-    prevPageBtn.disabled = currentPage === 1;
-    nextPageBtn.disabled = currentPage === totalPages;
-    
-    // Generate page numbers
-    generatePageNumbers();
-}
-
-// Generate page number buttons
-function generatePageNumbers() {
-    pageNumbers.innerHTML = '';
-    
-    // Show max 5 page numbers at a time
-    const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    
-    // Adjust start if we're near the end
-    if (endPage - startPage < maxVisible - 1) {
-        startPage = Math.max(1, endPage - maxVisible + 1);
-    }
-    
-    // First page
-    if (startPage > 1) {
-        const firstBtn = createPageButton(1);
-        pageNumbers.appendChild(firstBtn);
-        
-        if (startPage > 2) {
-            const dots = document.createElement('span');
-            dots.textContent = '...';
-            dots.className = 'px-2 text-gray-400';
-            pageNumbers.appendChild(dots);
-        }
-    }
-    
-    // Page numbers
-    for (let i = startPage; i <= endPage; i++) {
-        const btn = createPageButton(i);
-        pageNumbers.appendChild(btn);
-    }
-    
-    // Last page
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) {
-            const dots = document.createElement('span');
-            dots.textContent = '...';
-            dots.className = 'px-2 text-gray-400';
-            pageNumbers.appendChild(dots);
-        }
-        
-        const lastBtn = createPageButton(totalPages);
-        pageNumbers.appendChild(lastBtn);
-    }
-}
-
-// Create a page number button
-function createPageButton(pageNum) {
-    const btn = document.createElement('button');
-    btn.textContent = pageNum;
-    btn.className = pageNum === currentPage 
-        ? 'px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold'
-        : 'px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition';
-    
-    btn.addEventListener('click', () => {
-        currentPage = pageNum;
-        updateArticlesDisplay();
-    });
-    
-    return btn;
-}
-
-// Go to specific page
-function goToPage(pageNum) {
-    if (pageNum >= 1 && pageNum <= totalPages) {
-        currentPage = pageNum;
-        updateArticlesDisplay();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-}
-
-// Update display based on current state (filters, search, pagination)
-function updateArticlesDisplay() {
-    if (isSearchMode) {
-        displaySearchResults({ articles: searchResults, total_results: searchResults.length });
-    } else {
-        displayArticles();
-    }
-}
-
-// Display articles (wrapper for filtered display)
-function displayArticles() {
-    applyFiltersClientSide();
-}
-
-// Populate filter dropdowns dynamically
-function populateFilterDropdowns() {
-    // Populate category dropdown
-    const categories = Object.keys(allArticlesByCategory);
-    categoryFilter.innerHTML = '<option value="">All Categories</option>';
-    categories.forEach(category => {
-        const option = document.createElement('option');
-        option.value = category;
-        option.textContent = category;
-        categoryFilter.appendChild(option);
-    });
-    
-    // Populate source dropdown from actual articles
-    const sources = [...new Set(allArticlesRaw.map(a => a.source))].sort();
-    sourceFilter.innerHTML = '<option value="">All Sources</option>';
-    sources.forEach(source => {
-        const option = document.createElement('option');
-        option.value = source;
-        option.textContent = source;
-        sourceFilter.appendChild(option);
-    });
-}
-
-// Clear all filters
-function clearAllFilters() {
-    currentFilters = {
-        category: '',
-        timeRange: '',
-        source: ''
-    };
-    
-    categoryFilter.value = '';
-    timeRangeFilter.value = '';
-    sourceFilter.value = '';
-    
-    currentPage = 1; // Reset to page 1 when clearing filters
-    applyFiltersClientSide();
-}
-
-// Apply filters client-side (no API call!)
-function applyFiltersClientSide() {
-    let filteredArticles = [...allArticlesRaw];
-    
-    // Apply category filter
-    if (currentFilters.category) {
-        filteredArticles = filteredArticles.filter(a => a.category === currentFilters.category);
-    }
-    
-    // Apply time range filter
-    if (currentFilters.timeRange) {
-        const now = new Date();
-        const cutoffDate = new Date();
-        
-        if (currentFilters.timeRange === '24h') {
-            cutoffDate.setDate(now.getDate() - 1);
-        } else if (currentFilters.timeRange === '7d') {
-            cutoffDate.setDate(now.getDate() - 7);
-        } else if (currentFilters.timeRange === '30d') {
-            cutoffDate.setDate(now.getDate() - 30);
-        }
-        
-        filteredArticles = filteredArticles.filter(article => {
-            try {
-                const articleDate = new Date(article.published_date);
-                return articleDate >= cutoffDate;
-            } catch {
-                return true; // Include if date parsing fails
-            }
-        });
-    }
-    
-    // Apply source filter
-    if (currentFilters.source) {
-        filteredArticles = filteredArticles.filter(a => a.source === currentFilters.source);
-    }
-    
-    // Update active filters display
-    updateActiveFiltersDisplay();
-    
-    // Display filtered articles
-    displayFilteredArticles(filteredArticles);
-}
-
-// Update active filters display
-function updateActiveFiltersDisplay() {
-    const hasFilters = currentFilters.category || currentFilters.timeRange || currentFilters.source;
-    
-    if (hasFilters) {
-        activeFiltersDisplay.classList.remove('hidden');
-        activeFilterTags.innerHTML = '';
-        
-        if (currentFilters.category) {
-            const tag = createActiveFilterTag('Category', currentFilters.category);
-            activeFilterTags.appendChild(tag);
-        }
-        
-        if (currentFilters.timeRange) {
-            const timeLabels = {
-                '24h': 'Today',
-                '7d': 'Recent (7 days)',
-                '30d': 'Last Month'
-            };
-            const tag = createActiveFilterTag('Time', timeLabels[currentFilters.timeRange]);
-            activeFilterTags.appendChild(tag);
-        }
-        
-        if (currentFilters.source) {
-            const tag = createActiveFilterTag('Source', currentFilters.source);
-            activeFilterTags.appendChild(tag);
-        }
-    } else {
-        activeFiltersDisplay.classList.add('hidden');
-    }
-}
-
-// Create active filter tag element
-function createActiveFilterTag(type, value) {
-    const tag = document.createElement('span');
-    tag.className = 'inline-flex items-center bg-blue-900 text-blue-200 text-xs font-semibold px-3 py-1 rounded-full';
-    tag.innerHTML = `<strong>${type}:</strong>&nbsp;${value}`;
-    return tag;
-}
-
-// Fetch articles from API (only once, or on refresh)
-async function fetchArticles() {
+async function initializeApp() {
     showLoading();
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/feeds`);
+        // Fetch all data in parallel
+        const [articlesData, companiesData, todayData] = await Promise.all([
+            fetch(`${API_BASE_URL}/api/feeds`).then(r => r.json()),
+            fetch(`${API_BASE_URL}/api/companies`).then(r => r.json()),
+            fetch(`${API_BASE_URL}/api/today`).then(r => r.json())
+        ]);
         
-        if (!response.ok) {
-            throw new Error('Failed to fetch articles');
-        }
+        // Store in state
+        AppState.allArticles = flattenArticles(articlesData.categories);
+        AppState.companies = companiesData.companies;
+        AppState.todayArticles = todayData.articles || [];
         
-        const data = await response.json();
-        allArticlesByCategory = data.categories;
-        
-        // Flatten into a single array for easier filtering
-        allArticlesRaw = [];
-        for (const [category, articles] of Object.entries(allArticlesByCategory)) {
-            articles.forEach(article => {
-                article.category = category; // Ensure category is set
-                allArticlesRaw.push(article);
-            });
-        }
-        
-        // Populate dropdowns with available options
-        populateFilterDropdowns();
-        
-        // Display all articles initially
-        applyFiltersClientSide();
+        // Render homepage
+        renderHomepage();
+        hideLoading();
         
     } catch (error) {
-        console.error('Error fetching articles:', error);
-        showError('Failed to load articles. Please make sure the backend is running.');
+        console.error('Error initializing app:', error);
+        showError('Failed to load data. Please refresh the page.');
     }
 }
 
-// Display filtered articles
-function displayFilteredArticles(articlesToDisplay) {
-    articlesGrid.innerHTML = '';
-    
-    // Update title
-    let titleText = 'All Articles';
-    if (currentFilters.category) {
-        titleText = currentFilters.category;
-    } else if (currentFilters.timeRange || currentFilters.source) {
-        titleText = 'Filtered Articles';
+function flattenArticles(categories) {
+    const articles = [];
+    for (const [category, categoryArticles] of Object.entries(categories)) {
+        categoryArticles.forEach(article => {
+            article.category = category;
+            articles.push(article);
+        });
     }
-    currentCategoryTitle.textContent = titleText;
+    return articles;
+}
+
+// ===== Event Listeners =====
+function setupEventListeners() {
+    // Hero search
+    const heroSearch = document.getElementById('heroSearch');
+    const heroSearchBtn = document.getElementById('heroSearchBtn');
     
-    if (articlesToDisplay.length === 0) {
-        showEmpty();
-        paginationContainer.classList.add('hidden');
+    if (heroSearchBtn) {
+        heroSearchBtn.addEventListener('click', () => {
+            performSearch(heroSearch.value.trim());
+        });
+    }
+    
+    if (heroSearch) {
+        heroSearch.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch(heroSearch.value.trim());
+            }
+        });
+    }
+}
+
+// ===== Homepage Rendering =====
+function renderHomepage() {
+    AppState.currentView = 'home';
+    
+    // Show main content, hide detail view
+    document.getElementById('mainContent').classList.remove('hidden');
+    document.getElementById('detailView').classList.add('hidden');
+    
+    // Render all three columns
+    renderTodayHighlights();
+    renderCompaniesList();
+    renderTopicsList();
+}
+
+function renderTodayHighlights() {
+    const container = document.getElementById('todayArticles');
+    const countBadge = document.getElementById('todayCount');
+    
+    const total = AppState.todayArticles.length;
+    countBadge.textContent = total;
+    
+    // Show top 5 articles
+    const topArticles = AppState.todayArticles.slice(0, 5);
+    
+    if (topArticles.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-inbox text-4xl mb-2"></i>
+                <p>No updates in the last 24 hours</p>
+            </div>
+        `;
         return;
     }
     
-    // Calculate pagination
-    const totalArticles = articlesToDisplay.length;
-    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
-    const endIndex = startIndex + ARTICLES_PER_PAGE;
-    const currentPageArticles = articlesToDisplay.slice(startIndex, endIndex);
+    container.innerHTML = topArticles.map(article => createCompactArticleCard(article)).join('');
+}
+
+function renderCompaniesList() {
+    const container = document.getElementById('companiesList');
     
-    // Update article count to show pagination info
-    if (totalArticles > ARTICLES_PER_PAGE) {
-        const startNum = startIndex + 1;
-        const endNum = Math.min(endIndex, totalArticles);
-        articleCount.textContent = `Showing ${startNum}-${endNum} of ${totalArticles} curated articles`;
-    } else {
-        articleCount.textContent = `${totalArticles} curated articles`;
+    // Show top 8 companies with updates
+    const topCompanies = AppState.companies
+        .filter(c => c.update_count > 0)
+        .slice(0, 8);
+    
+    if (topCompanies.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-sm">No company updates available</p>';
+        return;
     }
     
-    // Display only current page articles
-    currentPageArticles.forEach((article, index) => {
-        const articleCard = createArticleCard(article, index);
-        articlesGrid.appendChild(articleCard);
-    });
-    
-    // Update pagination controls
-    updatePaginationControls(totalArticles);
-    
-    hideLoading();
-    articlesContainer.classList.remove('hidden');
-    emptyState.classList.add('hidden');
+    container.innerHTML = topCompanies.map(company => `
+        <div class="company-item" onclick="viewCompany('${company.id}')">
+            <div class="company-logo" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                ${company.name.charAt(0)}
+            </div>
+            <div class="company-info flex-1">
+                <h4>${company.name}</h4>
+                <p>${company.description}</p>
+            </div>
+            ${company.update_count > 0 ? `<span class="new-badge">${company.update_count}</span>` : ''}
+        </div>
+    `).join('');
 }
 
-// Create article card element
-function createArticleCard(article, index) {
-    const card = document.createElement('div');
-    card.className = 'article-card bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 fade-in';
-    card.style.animationDelay = `${index * 0.05}s`;
+function renderTopicsList() {
+    const container = document.getElementById('topicsList');
     
-    const categoryBadge = document.createElement('span');
-    categoryBadge.className = 'inline-block bg-blue-900 text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded mb-3';
-    categoryBadge.textContent = article.category || 'Uncategorized';
-    
-    const title = document.createElement('h3');
-    title.className = 'text-lg font-bold text-white mb-2 line-clamp-2';
-    title.textContent = article.title;
-    
-    const meta = document.createElement('div');
-    meta.className = 'flex items-center space-x-2 text-sm text-gray-400 mb-3';
-    meta.innerHTML = `
-        <i class="fas fa-calendar-alt"></i>
-        <span>${article.published_date || 'Unknown date'}</span>
-        <span>•</span>
-        <span class="font-medium">${article.source || 'Unknown source'}</span>
-    `;
-    
-    const summary = document.createElement('p');
-    summary.className = 'text-gray-300 text-sm mb-4 line-clamp-3';
-    const cleanSummary = stripHtmlTags(article.summary || 'No summary available');
-    summary.textContent = cleanSummary.length > 150 ? cleanSummary.substring(0, 150) + '...' : cleanSummary;
-    
-    const link = document.createElement('a');
-    link.href = article.link || '#';
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.className = 'inline-flex items-center text-blue-400 hover:text-blue-300 font-medium text-sm';
-    link.innerHTML = `
-        Read more
-        <i class="fas fa-arrow-right ml-2"></i>
-    `;
-    
-    card.appendChild(categoryBadge);
-    card.appendChild(title);
-    card.appendChild(meta);
-    card.appendChild(summary);
-    card.appendChild(link);
-    
-    return card;
+    container.innerHTML = TOPICS.map(topic => `
+        <a href="#topic-${topic.id}" class="topic-card" onclick="viewTopic('${topic.id}'); return false;">
+            <span class="topic-icon">${topic.icon}</span>
+            <div class="topic-info flex-1">
+                <h4>${topic.name}</h4>
+                <p class="topic-desc">${topic.desc}</p>
+            </div>
+        </a>
+    `).join('');
 }
 
-// Utility functions
+// ===== Article Card Creation =====
+function createCompactArticleCard(article) {
+    const sourceType = getSourceType(article);
+    const timeAgo = formatTimeAgo(article.published_date);
+    const plainEnglish = generatePlainEnglish(article);
+    
+    return `
+        <article class="article-card-compact">
+            <span class="source-badge ${sourceType}">
+                ${getSourceName(article.source)}
+            </span>
+            <h3>${escapeHtml(article.title)}</h3>
+            <p class="meta">${timeAgo}</p>
+            ${plainEnglish}
+            <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="text-blue-600 text-sm hover:underline">
+                Read more →
+            </a>
+        </article>
+    `;
+}
+
+// ===== View Functions =====
+function viewAllToday() {
+    AppState.currentView = 'today';
+    
+    // Hide main content, show detail view
+    document.getElementById('mainContent').classList.add('hidden');
+    document.getElementById('detailView').classList.remove('hidden');
+    
+    const detailContent = document.getElementById('detailContent');
+    
+    const articles = AppState.todayArticles;
+    
+    detailContent.innerHTML = `
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Today's Updates</h1>
+            <p class="text-gray-600">All articles from the last 24 hours (${articles.length} total)</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${articles.map(article => createFullArticleCard(article)).join('')}
+        </div>
+    `;
+}
+
+async function viewCompany(companyId) {
+    AppState.currentView = 'company';
+    AppState.currentCompany = companyId;
+    
+    showLoading();
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/companies/${companyId}`);
+        const data = await response.json();
+        
+        // Hide main content, show detail view
+        document.getElementById('mainContent').classList.add('hidden');
+        document.getElementById('detailView').classList.remove('hidden');
+        
+        const detailContent = document.getElementById('detailContent');
+        const company = data.company;
+        const updates = data.updates || [];
+        
+        detailContent.innerHTML = `
+            <div class="bg-white rounded-lg p-6 mb-6 shadow-sm">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="company-logo" style="width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px;">
+                        ${company.name.charAt(0)}
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">${company.name}</h1>
+                        <p class="text-gray-600">${company.description}</p>
+                    </div>
+                </div>
+                
+                ${company.products ? `
+                    <div class="mt-4">
+                        <p class="text-sm font-semibold text-gray-700 mb-2">Products:</p>
+                        <div class="flex flex-wrap gap-2">
+                            ${company.products.map(p => `<span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">${p}</span>`).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+            
+            <div class="mb-4">
+                <h2 class="text-2xl font-bold text-gray-900">Latest Updates (${updates.length})</h2>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                ${updates.map(article => createFullArticleCard(article)).join('')}
+            </div>
+        `;
+        
+        hideLoading();
+        
+    } catch (error) {
+        console.error('Error loading company:', error);
+        showError('Failed to load company details');
+    }
+}
+
+function viewTopic(topicId) {
+    AppState.currentView = 'topic';
+    AppState.currentTopic = topicId;
+    
+    const topic = TOPICS.find(t => t.id === topicId);
+    if (!topic) return;
+    
+    // Hide main content, show detail view
+    document.getElementById('mainContent').classList.add('hidden');
+    document.getElementById('detailView').classList.remove('hidden');
+    
+    const detailContent = document.getElementById('detailContent');
+    
+    // Filter articles by category
+    const topicArticles = AppState.allArticles.filter(a => a.category === topic.category);
+    
+    detailContent.innerHTML = `
+        <div class="mb-6">
+            <div class="flex items-center gap-4 mb-2">
+                <span class="text-5xl">${topic.icon}</span>
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">${topic.name}</h1>
+                    <p class="text-gray-600">${topic.desc}</p>
+                </div>
+            </div>
+            <p class="text-gray-600 mt-2">${topicArticles.length} articles</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${topicArticles.slice(0, 30).map(article => createFullArticleCard(article)).join('')}
+        </div>
+    `;
+}
+
+function viewAllCompanies() {
+    // Show all companies in detail view
+    AppState.currentView = 'companies';
+    
+    document.getElementById('mainContent').classList.add('hidden');
+    document.getElementById('detailView').classList.remove('hidden');
+    
+    const detailContent = document.getElementById('detailContent');
+    
+    detailContent.innerHTML = `
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">All AI Companies</h1>
+            <p class="text-gray-600">Track updates from major AI platforms</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${AppState.companies.map(company => `
+                <div class="company-item border-2" onclick="viewCompany('${company.id}')" style="padding: 20px;">
+                    <div class="company-logo mb-3" style="width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px;">
+                        ${company.name.charAt(0)}
+                    </div>
+                    <h4 class="text-lg font-bold">${company.name}</h4>
+                    <p class="text-sm text-gray-600 mb-2">${company.description}</p>
+                    ${company.update_count > 0 ? `<span class="new-badge">${company.update_count} updates</span>` : '<span class="text-gray-400 text-sm">No recent updates</span>'}
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function viewAllTopics() {
+    // Show all topics in detail view
+    AppState.currentView = 'topics';
+    
+    document.getElementById('mainContent').classList.add('hidden');
+    document.getElementById('detailView').classList.remove('hidden');
+    
+    const detailContent = document.getElementById('detailContent');
+    
+    detailContent.innerHTML = `
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Browse by Topic</h1>
+            <p class="text-gray-600">Explore AI content by your interests</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${TOPICS.map(topic => {
+                const count = AppState.allArticles.filter(a => a.category === topic.category).length;
+                return `
+                    <div class="topic-card border-2" onclick="viewTopic('${topic.id}')" style="padding: 20px;">
+                        <span class="topic-icon text-5xl mb-3 block">${topic.icon}</span>
+                        <h4 class="text-lg font-bold">${topic.name}</h4>
+                        <p class="text-sm text-gray-600 mb-2">${topic.desc}</p>
+                        <span class="text-blue-600 text-sm font-semibold">${count} articles</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function backToHome() {
+    renderHomepage();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ===== Search Functions =====
+async function performSearch(query) {
+    if (!query) return;
+    
+    AppState.currentView = 'search';
+    AppState.searchQuery = query;
+    
+    showLoading();
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        document.getElementById('mainContent').classList.add('hidden');
+        document.getElementById('detailView').classList.remove('hidden');
+        
+        const detailContent = document.getElementById('detailContent');
+        const results = data.articles || [];
+        
+        detailContent.innerHTML = `
+            <div class="mb-6">
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">Search Results</h1>
+                <p class="text-gray-600">Found ${results.length} results for "${escapeHtml(query)}"</p>
+            </div>
+            
+            ${results.length > 0 ? `
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${results.map(article => createFullArticleCard(article)).join('')}
+                </div>
+            ` : `
+                <div class="text-center py-20">
+                    <i class="fas fa-search text-6xl text-gray-300 mb-4"></i>
+                    <h3 class="text-xl font-semibold text-gray-600 mb-2">No results found</h3>
+                    <p class="text-gray-500">Try different keywords or browse by company or topic</p>
+                </div>
+            `}
+        `;
+        
+        hideLoading();
+        
+    } catch (error) {
+        console.error('Search error:', error);
+        showError('Search failed. Please try again.');
+    }
+}
+
+function quickSearch(term) {
+    document.getElementById('heroSearch').value = term;
+    performSearch(term);
+}
+
+// ===== Article Card Creation (Full) =====
+function createFullArticleCard(article) {
+    const sourceType = getSourceType(article);
+    const summary = stripHtml(article.summary || '').substring(0, 150) + '...';
+    
+    return `
+        <div class="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-all border-l-4" style="border-color: var(--color-${sourceType})">
+            <span class="source-badge ${sourceType} mb-3">${getSourceName(article.source)}</span>
+            <h3 class="text-lg font-bold text-gray-900 mb-2 line-clamp-2">${escapeHtml(article.title)}</h3>
+            <p class="text-sm text-gray-600 mb-3">${escapeHtml(summary)}</p>
+            <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+                <span><i class="far fa-calendar"></i> ${article.published_date || 'Unknown date'}</span>
+                <span class="px-2 py-1 bg-gray-100 rounded">${article.category || 'General'}</span>
+            </div>
+            <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="text-blue-600 text-sm font-semibold hover:underline">
+                Read full article →
+            </a>
+        </div>
+    `;
+}
+
+// ===== Helper Functions =====
+function getSourceType(article) {
+    const source = article.source || '';
+    
+    // Check source_type from classification
+    if (article.source_type) {
+        return article.source_type;
+    }
+    
+    // Fallback to basic detection
+    const officialSources = ['openai', 'google_ai', 'anthropic', 'meta_ai', 'microsoft_ai', 'nvidia_ai', 'huggingface', 'cohere', 'deepmind', 'stability_ai'];
+    const newsSources = ['venturebeat', 'techcrunch', 'mit_tech', 'verge', 'wired', 'ars', 'zdnet', 'forbes', 'axios'];
+    const researchSources = ['arxiv', 'paperswithcode', 'distill', 'the_batch'];
+    
+    if (officialSources.some(s => source.includes(s))) return 'official';
+    if (newsSources.some(s => source.includes(s))) return 'news';
+    if (researchSources.some(s => source.includes(s))) return 'research';
+    if (source.includes('reddit') || source.includes('hackernews')) return 'community';
+    
+    return 'news';
+}
+
+function getSourceName(source) {
+    // Map source IDs to display names
+    const nameMap = {
+        'openai': 'OpenAI',
+        'anthropic': 'Anthropic',
+        'google_ai': 'Google AI',
+        'meta_ai': 'Meta AI',
+        'microsoft_ai': 'Microsoft',
+        'nvidia_ai': 'NVIDIA',
+        'huggingface': 'Hugging Face',
+        'cohere': 'Cohere',
+        'deepmind': 'DeepMind',
+        'stability_ai': 'Stability AI',
+        'venturebeat_ai': 'VentureBeat',
+        'techcrunch_ai': 'TechCrunch',
+        'mit_tech_ai': 'MIT Tech Review',
+        'the_verge_ai': 'The Verge',
+        'wired_ai': 'WIRED',
+        'arxiv_cs_ai': 'arXiv',
+        'arxiv_cs_lg': 'arXiv ML',
+        'arxiv_cs_cl': 'arXiv NLP',
+        'paperswithcode': 'Papers with Code',
+        'the_batch': 'The Batch',
+        'reddit_machinelearning': 'r/MachineLearning',
+        'reddit_artificial': 'r/artificial',
+        'hackernews_ai': 'Hacker News'
+    };
+    
+    return nameMap[source] || source;
+}
+
+function formatTimeAgo(dateString) {
+    if (!dateString) return 'Unknown date';
+    
+    try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffHours / 24);
+        
+        if (diffHours < 1) return 'Just now';
+        if (diffHours < 24) return `${diffHours} hours ago`;
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${diffDays} days ago`;
+        if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+        return dateString;
+    } catch {
+        return dateString;
+    }
+}
+
+function generatePlainEnglish(article) {
+    if (!article.update_type) return '';
+    
+    const updateType = article.update_type;
+    const source = getSourceName(article.source);
+    
+    const explanations = {
+        'product_launch': `💡 In simple terms: ${source} launched something new`,
+        'feature_update': `💡 In simple terms: ${source} improved their product`,
+        'research_paper': `💡 In simple terms: New research findings published`,
+        'acquisition': `💡 In simple terms: A company was acquired`,
+        'funding': `💡 In simple terms: Company raised money`,
+        'partnership': `💡 In simple terms: Companies are working together`
+    };
+    
+    const explanation = explanations[updateType];
+    return explanation ? `<span class="plain-english">${explanation}</span>` : '';
+}
+
+function stripHtml(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ===== UI State Functions =====
 function showLoading() {
-    loadingIndicator.classList.remove('hidden');
-    articlesContainer.classList.add('hidden');
-    emptyState.classList.add('hidden');
-    document.getElementById('footer').classList.add('hidden');
+    document.getElementById('loadingIndicator').classList.remove('hidden');
 }
 
 function hideLoading() {
-    loadingIndicator.classList.add('hidden');
-    document.getElementById('footer').classList.remove('hidden');
-}
-
-function showEmpty() {
-    loadingIndicator.classList.add('hidden');
-    articlesContainer.classList.add('hidden');
-    emptyState.classList.remove('hidden');
-    document.getElementById('footer').classList.remove('hidden');
+    document.getElementById('loadingIndicator').classList.add('hidden');
 }
 
 function showError(message) {
@@ -537,316 +595,29 @@ function showError(message) {
     alert(message);
 }
 
-function stripHtmlTags(html) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || '';
+// ===== Help Functions =====
+function toggleHelp() {
+    const panel = document.getElementById('helpPanel');
+    panel.classList.toggle('active');
 }
 
-// Content Overview Functions
-
-async function fetchWeeklySummary() {
-    weeklySummaryLoading.classList.remove('hidden');
-    weeklySummarySection.classList.add('hidden');
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/content-overview`);
-        
-        if (!response.ok) {
-            throw new Error('Failed to fetch content overview');
-        }
-        
-        const data = await response.json();
-        weeklySummaryData = data.summary;
-        weeklySummaryLoaded = true;
-        
-        displayWeeklySummary();
-    } catch (error) {
-        console.error('Error fetching content overview:', error);
-        weeklySummaryLoading.innerHTML = `
-            <div class="text-center text-red-400">
-                <i class="fas fa-exclamation-circle text-4xl mb-4"></i>
-                <p>Failed to load content overview</p>
-            </div>
-        `;
-    }
+function showGlossary() {
+    alert('AI Glossary feature coming soon! This will explain common AI terms in simple language.');
 }
 
-function displayWeeklySummary() {
-    if (!weeklySummaryData) {
-        return;
-    }
-    
-    const stats = weeklySummaryData.statistics;
-    const highlights = weeklySummaryData.highlights;
-    
-    // Display main statistics
-    statsGrid.innerHTML = '';
-    
-    const totalCard = createStatCard(
-        'fas fa-newspaper',
-        stats.total_articles || 0,
-        'Total Articles',
-        'bg-blue-700'
-    );
-    statsGrid.appendChild(totalCard);
-    
-    const categoriesCount = Object.keys(stats.category_breakdown || {}).length;
-    const categoriesCard = createStatCard(
-        'fas fa-layer-group',
-        categoriesCount,
-        'Categories',
-        'bg-purple-700'
-    );
-    statsGrid.appendChild(categoriesCard);
-    
-    const sourcesCount = (stats.top_sources || []).length;
-    const sourcesCard = createStatCard(
-        'fas fa-rss',
-        sourcesCount,
-        'Sources',
-        'bg-green-700'
-    );
-    statsGrid.appendChild(sourcesCard);
-    
-    // Display category breakdown
-    categoryBreakdown.innerHTML = '';
-    if (stats.category_breakdown) {
-        Object.entries(stats.category_breakdown).forEach(([category, count]) => {
-            const breakdownCard = document.createElement('div');
-            breakdownCard.className = 'bg-white bg-opacity-10 rounded-lg p-4';
-            breakdownCard.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <span class="text-sm">${category}</span>
-                    <span class="text-xl font-bold">${count}</span>
-                </div>
-            `;
-            categoryBreakdown.appendChild(breakdownCard);
-        });
-    }
-    
-    // Display top sources
-    topSources.innerHTML = '';
-    if (stats.top_sources) {
-        stats.top_sources.forEach(source => {
-            const sourceCard = document.createElement('div');
-            sourceCard.className = 'bg-white bg-opacity-10 rounded-lg p-4 flex justify-between items-center';
-            sourceCard.innerHTML = `
-                <div class="flex items-center">
-                    <i class="fas fa-rss mr-3 text-green-400"></i>
-                    <span class="font-medium">${source.source}</span>
-                </div>
-                <span class="text-xl font-bold">${source.count}</span>
-            `;
-            topSources.appendChild(sourceCard);
-        });
-    }
-    
-    // Display highlights
-    highlightsContainer.innerHTML = '';
-    if (highlights && highlights.length > 0) {
-        highlights.forEach((article, index) => {
-            const highlightCard = createHighlightCard(article, index + 1);
-            highlightsContainer.appendChild(highlightCard);
-        });
-    } else {
-        highlightsContainer.innerHTML = '<p class="text-blue-200 text-sm">No highlights available</p>';
-    }
-    
-    weeklySummaryLoading.classList.add('hidden');
-    weeklySummarySection.classList.remove('hidden');
+function startTour() {
+    alert('Interactive tour coming soon! This will guide you through the main features.');
 }
 
-function createStatCard(icon, value, label, bgColor) {
-    const card = document.createElement('div');
-    card.className = `stat-card ${bgColor} rounded-lg p-6 text-center shadow-lg`;
-    card.innerHTML = `
-        <i class="${icon} text-4xl mb-3"></i>
-        <div class="text-4xl font-bold mb-1">${value}</div>
-        <div class="text-sm opacity-90 uppercase tracking-wide">${label}</div>
-    `;
-    return card;
-}
-
-function createHighlightCard(article, index) {
-    const card = document.createElement('div');
-    card.className = 'highlight-card bg-white bg-opacity-10 rounded-lg p-5 hover:bg-opacity-15 transition';
-    
-    const title = document.createElement('h4');
-    title.className = 'font-semibold text-white mb-2 text-lg';
-    title.textContent = `${index}. ${article.title || 'No Title'}`;
-    
-    const meta = document.createElement('div');
-    meta.className = 'text-sm text-blue-200 mb-3 flex items-center flex-wrap gap-3';
-    meta.innerHTML = `
-        <span><i class="fas fa-calendar-alt mr-1"></i> ${article.published_date || 'N/A'}</span>
-        <span><i class="fas fa-tag mr-1"></i> ${article.category || 'Uncategorized'}</span>
-        <span><i class="fas fa-rss mr-1"></i> ${article.source || 'Unknown'}</span>
-    `;
-    
-    const summary = document.createElement('p');
-    summary.className = 'text-blue-100 text-sm mb-3 line-clamp-2';
-    summary.textContent = stripHtmlTags(article.summary || 'No summary available');
-    
-    const link = document.createElement('a');
-    link.href = article.link || '#';
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.className = 'text-blue-300 hover:text-blue-100 text-sm flex items-center font-medium';
-    link.innerHTML = `
-        Read full article
-        <i class="fas fa-external-link-alt ml-2 text-xs"></i>
-    `;
-    
-    card.appendChild(title);
-    card.appendChild(meta);
-    card.appendChild(summary);
-    card.appendChild(link);
-    
-    return card;
-}
-
-// Search Functions
-
-let searchLoadingInterval = null;
-
-function showSearchLoading() {
-    // Show articles container but clear grid
-    articlesGrid.innerHTML = '';
-    articlesContainer.classList.remove('hidden');
-    emptyState.classList.add('hidden');
-    paginationContainer.classList.add('hidden');
-    
-    // Set title
-    currentCategoryTitle.textContent = 'Searching...';
-    
-    // Create rotating loading messages
-    const messages = [
-        'Processing natural language query',
-        'Analyzing semantic context',
-        'Filtering relevant articles',
-        'Almost there...'
-    ];
-    
-    let messageIndex = 0;
-    
-    // Create loading card
-    const loadingCard = document.createElement('div');
-    loadingCard.id = 'searchLoadingCard';
-    loadingCard.className = 'col-span-full flex flex-col items-center justify-center py-20';
-    loadingCard.innerHTML = `
-        <div class="loader-spinner mb-4"></div>
-        <div class="text-xl font-semibold text-white mb-2" id="searchLoadingText">${messages[0]}</div>
-        <div class="text-gray-400">Please wait...</div>
-    `;
-    
-    articlesGrid.appendChild(loadingCard);
-    
-    // Rotate messages every 2 seconds
-    searchLoadingInterval = setInterval(() => {
-        messageIndex = (messageIndex + 1) % messages.length;
-        const textElement = document.getElementById('searchLoadingText');
-        if (textElement) {
-            textElement.textContent = messages[messageIndex];
-        }
-    }, 2000);
-}
-
-function hideSearchLoading() {
-    if (searchLoadingInterval) {
-        clearInterval(searchLoadingInterval);
-        searchLoadingInterval = null;
+// ===== First Visit Check =====
+function checkFirstVisit() {
+    if (!localStorage.getItem('ai_scout_visited')) {
+        // Show welcome message
+        setTimeout(() => {
+            if (confirm('Welcome to AI Scout! 👋\n\nWould you like a quick tour of the features?')) {
+                startTour();
+            }
+            localStorage.setItem('ai_scout_visited', 'true');
+        }, 1000);
     }
-    const loadingCard = document.getElementById('searchLoadingCard');
-    if (loadingCard) {
-        loadingCard.remove();
-    }
-}
-
-async function performSearch(query) {
-    if (!query) {
-        clearSearch();
-        return;
-    }
-    
-    // Reset to page 1 for new search
-    currentPage = 1;
-    
-    showSearchLoading();
-    isSearchMode = true;
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
-        
-        if (!response.ok) {
-            throw new Error('Search failed');
-        }
-        
-        const data = await response.json();
-        searchResults = data.articles || [];
-        
-        hideSearchLoading();
-        displaySearchResults(data);
-    } catch (error) {
-        console.error('Error performing search:', error);
-        hideSearchLoading();
-        showError('Search failed. Please try again.');
-    }
-}
-
-function displaySearchResults(data) {
-    articlesGrid.innerHTML = '';
-    
-    currentCategoryTitle.textContent = 'Search Results';
-    
-    // Hide pagination for search results
-    paginationContainer.classList.add('hidden');
-    
-    if (searchResults.length === 0) {
-        articleCount.textContent = 'No highly relevant results found (75%+ relevance required)';
-        showEmpty();
-        return;
-    }
-    
-    // Display search results (top 6 with >= 75% relevance)
-    const totalResults = searchResults.length;
-    if (totalResults === 1) {
-        articleCount.textContent = `${totalResults} highly relevant result`;
-    } else {
-        articleCount.textContent = `Top ${totalResults} results (≥75% relevance)`;
-    }
-    
-    searchResults.forEach((article, index) => {
-        const articleCard = createArticleCard(article, index);
-        
-        // Add relevance percentage indicator (already calculated by backend)
-        const relevancePercentage = article.relevance_percentage || 0;
-        if (relevancePercentage > 0) {
-            const scoreIndicator = document.createElement('div');
-            scoreIndicator.className = 'relevance-score text-sm mt-3 flex items-center gap-2';
-            scoreIndicator.innerHTML = `
-                <div class="flex items-center gap-1">
-                    <i class="fas fa-star text-yellow-400"></i>
-                    <span class="font-semibold">${relevancePercentage}% Relevant</span>
-                </div>
-            `;
-            articleCard.appendChild(scoreIndicator);
-        }
-        
-        articlesGrid.appendChild(articleCard);
-    });
-    
-    articlesContainer.classList.remove('hidden');
-    emptyState.classList.add('hidden');
-}
-
-function clearSearch() {
-    isSearchMode = false;
-    searchResults = [];
-    searchInput.value = '';
-    clearSearchBtn.classList.add('hidden');
-    searchInput.classList.remove('search-active');
-    
-    // Return to filtered view
-    applyFiltersClientSide();
 }
