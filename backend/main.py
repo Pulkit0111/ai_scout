@@ -58,31 +58,60 @@ async def root():
 
 
 @app.get("/api/feeds")
-async def get_feeds(filter: str = None):
+async def get_feeds(filters: str = None):
     """
     Get all feeds grouped by category
     
     Query Parameters:
-        filter: Optional filter for articles (e.g., "24h" for last 24 hours)
+        filters: Optional comma-separated filters (e.g., "24h,LLMs & Foundation Models")
+                 Supports time filters (24h, 7d) and category names
     """
     try:
         # Fetch all articles
         articles = fetch_all_feeds()
         
-        # Apply time filter if requested
-        if filter == "24h":
+        # Parse filters
+        active_filters = []
+        time_filter = None
+        category_filters = []
+        
+        if filters:
+            filter_list = [f.strip() for f in filters.split(',')]
+            active_filters = filter_list
+            
+            for f in filter_list:
+                if f == "24h":
+                    time_filter = 1
+                elif f == "7d":
+                    time_filter = 7
+                elif f in CATEGORIES:
+                    category_filters.append(f)
+        
+        # Apply time filter if specified
+        if time_filter:
             from weekly_summary import filter_articles_by_days
-            articles = filter_articles_by_days(articles, days=1)
+            articles = filter_articles_by_days(articles, days=time_filter)
         
         # Categorize articles
         categorized = categorize_articles(articles)
         
+        # Apply category filter if specified
+        if category_filters:
+            filtered_categorized = {}
+            for category in category_filters:
+                if category in categorized:
+                    filtered_categorized[category] = categorized[category]
+            categorized = filtered_categorized
+        
+        # Calculate total articles after filtering
+        total_filtered = sum(len(arts) for arts in categorized.values())
+        
         return {
             "success": True,
             "timestamp": datetime.now().isoformat(),
-            "total_articles": len(articles),
+            "total_articles": total_filtered,
             "categories": categorized,
-            "filter_applied": filter
+            "filters_applied": active_filters
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
