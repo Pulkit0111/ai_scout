@@ -161,9 +161,9 @@ function setupEventListeners() {
         heroSearch.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 performSearch(heroSearch.value.trim());
-            }
-        });
-    }
+        }
+    });
+}
 }
 
 // ===== Homepage Rendering =====
@@ -516,8 +516,8 @@ function createFullArticleCard(article) {
             <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="text-blue-600 text-sm font-semibold hover:underline">
                 Read full article →
             </a>
-        </div>
-    `;
+                </div>
+            `;
 }
 
 // ===== Helper Functions =====
@@ -700,52 +700,77 @@ function toggleHelp() {
 }
 
 function showGlossary() {
-    // Load glossary modal if not already loaded
+    // Create glossary modal on demand (only once)
     if (!document.getElementById('glossaryModal')) {
-        fetch('/static/glossary.html')
-            .then(response => response.text())
-            .then(html => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const modal = doc.getElementById('glossaryModal');
-                if (modal) {
-                    document.body.appendChild(modal);
-                    modal.classList.remove('hidden');
-                }
-            })
-            .catch(error => {
-                console.error('Error loading glossary:', error);
-                alert('Glossary coming soon!');
-            });
-    } else {
-        document.getElementById('glossaryModal').classList.remove('hidden');
+        const modal = createGlossaryModal();
+        document.body.appendChild(modal);
     }
+    document.getElementById('glossaryModal').classList.remove('hidden');
+}
+
+function createGlossaryModal() {
+    const modal = document.createElement('div');
+    modal.id = 'glossaryModal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4';
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
+        }
+    };
+    
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="sticky top-0 bg-gray-800 border-b border-gray-700 p-6 flex items-center justify-between">
+                <h2 class="text-2xl font-bold text-white">
+                    <i class="fas fa-book text-blue-500 mr-2"></i>AI Glossary
+                </h2>
+                <button onclick="document.getElementById('glossaryModal').classList.add('hidden')" class="text-gray-400 hover:text-white text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                ${generateGlossaryTerms()}
+            </div>
+        </div>
+    `;
+    
+    return modal;
+}
+
+function generateGlossaryTerms() {
+    const terms = [
+        { term: 'Artificial Intelligence (AI)', desc: 'Computer systems that can perform tasks requiring human intelligence, like understanding language or recognizing images.' },
+        { term: 'Large Language Model (LLM)', desc: 'An AI trained on massive amounts of text that can understand and generate human-like text. Powers ChatGPT and Claude.' },
+        { term: 'Machine Learning (ML)', desc: 'AI that learns from examples rather than being explicitly programmed. Like Netflix learning your preferences.' },
+        { term: 'GPT', desc: 'Generative Pre-trained Transformer - The technology behind ChatGPT, created by OpenAI.' },
+        { term: 'Neural Network', desc: 'Computer system inspired by the human brain, made of interconnected nodes that recognize patterns.' },
+        { term: 'Transformer', desc: 'A type of neural network particularly good at understanding language and context.' },
+        { term: 'Fine-tuning', desc: 'Taking an existing AI model and training it further on specific data for a particular task.' },
+        { term: 'Prompt', desc: 'The text you type into an AI system to get a response. Good prompts lead to better answers.' },
+        { term: 'Multimodal AI', desc: 'AI that can understand multiple types of data like text, images, and audio together.' },
+        { term: 'Generative AI', desc: 'AI that creates new content like text, images, or music rather than just analyzing.' },
+        { term: 'Hallucination', desc: 'When AI confidently provides incorrect information or makes up facts.' },
+        { term: 'Token', desc: 'A piece of text that AI processes, usually a word or part of a word.' },
+        { term: 'Training Data', desc: 'The information (text, images, etc.) that AI systems learn from.' },
+        { term: 'AI Agent', desc: 'An AI system that can take actions on your behalf, like booking appointments or sending emails.' }
+    ];
+    
+    return terms.map(t => `
+        <div class="p-4 bg-gray-700 rounded-lg border-l-4 border-blue-500 hover:bg-gray-600 transition">
+            <h3 class="text-lg font-bold text-white mb-2">${t.term}</h3>
+            <p class="text-gray-300">${t.desc}</p>
+        </div>
+    `).join('');
 }
 
 function startTour() {
-    // This function is overridden by onboarding.js
-    // Fallback if onboarding.js hasn't loaded yet
-    if (typeof window.startInteractiveTour !== 'undefined') {
-        window.startInteractiveTour();
-    } else {
-        alert('Loading tour...');
-        setTimeout(() => {
-            if (typeof window.startInteractiveTour !== 'undefined') {
-                window.startInteractiveTour();
-            }
-        }, 500);
-    }
+    alert('Welcome to AI Scout! 🤖\n\n✨ Today\'s Highlights - Latest 24h updates\n🏢 Companies - Updates from AI companies\n📚 Topics - Browse by category\n🔍 Search - Find anything about AI');
 }
 
 // ===== First Visit Check =====
 function checkFirstVisit() {
+    // Simplified - no onboarding tour
     if (!localStorage.getItem('ai_scout_visited')) {
-        // Show welcome message
-        setTimeout(() => {
-            if (confirm('Welcome to AI Scout! 👋\n\nWould you like a quick tour of the features?')) {
-                startTour();
-            }
-            localStorage.setItem('ai_scout_visited', 'true');
-        }, 1000);
+        localStorage.setItem('ai_scout_visited', 'true');
     }
 }
