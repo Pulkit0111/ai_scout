@@ -17,6 +17,11 @@ let currentFilters = {
     source: ''
 };
 
+// Pagination state
+const ARTICLES_PER_PAGE = 9;
+let currentPage = 1;
+let totalPages = 1;
+
 // DOM Elements
 const articlesTab = document.getElementById('articlesTab');
 const weeklySummaryTab = document.getElementById('weeklySummaryTab');
@@ -37,6 +42,10 @@ const articleCount = document.getElementById('articleCount');
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
+const paginationContainer = document.getElementById('paginationContainer');
+const prevPageBtn = document.getElementById('prevPageBtn');
+const nextPageBtn = document.getElementById('nextPageBtn');
+const pageNumbers = document.getElementById('pageNumbers');
 const weeklySummarySection = document.getElementById('weeklySummarySection');
 const weeklySummaryLoading = document.getElementById('weeklySummaryLoading');
 const statsGrid = document.getElementById('statsGrid');
@@ -48,6 +57,7 @@ const topSources = document.getElementById('topSources');
 document.addEventListener('DOMContentLoaded', () => {
     initializeTabs();
     initializeFilterListeners();
+    initializePagination();
     fetchArticles(); // Fetch once and store
     
     // Search event listeners
@@ -123,6 +133,129 @@ function initializeFilterListeners() {
     });
 }
 
+// Initialize pagination
+function initializePagination() {
+    prevPageBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            updateArticlesDisplay();
+        }
+    });
+    
+    nextPageBtn.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+            currentPage++;
+            updateArticlesDisplay();
+        }
+    });
+}
+
+// Update pagination controls
+function updatePaginationControls(totalArticles) {
+    totalPages = Math.ceil(totalArticles / ARTICLES_PER_PAGE);
+    
+    // Show/hide pagination based on article count
+    if (totalArticles > ARTICLES_PER_PAGE) {
+        paginationContainer.classList.remove('hidden');
+    } else {
+        paginationContainer.classList.add('hidden');
+        return;
+    }
+    
+    // Update button states
+    prevPageBtn.disabled = currentPage === 1;
+    nextPageBtn.disabled = currentPage === totalPages;
+    
+    // Generate page numbers
+    generatePageNumbers();
+}
+
+// Generate page number buttons
+function generatePageNumbers() {
+    pageNumbers.innerHTML = '';
+    
+    // Show max 5 page numbers at a time
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    // Adjust start if we're near the end
+    if (endPage - startPage < maxVisible - 1) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    // First page
+    if (startPage > 1) {
+        const firstBtn = createPageButton(1);
+        pageNumbers.appendChild(firstBtn);
+        
+        if (startPage > 2) {
+            const dots = document.createElement('span');
+            dots.textContent = '...';
+            dots.className = 'px-2 text-gray-400';
+            pageNumbers.appendChild(dots);
+        }
+    }
+    
+    // Page numbers
+    for (let i = startPage; i <= endPage; i++) {
+        const btn = createPageButton(i);
+        pageNumbers.appendChild(btn);
+    }
+    
+    // Last page
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            const dots = document.createElement('span');
+            dots.textContent = '...';
+            dots.className = 'px-2 text-gray-400';
+            pageNumbers.appendChild(dots);
+        }
+        
+        const lastBtn = createPageButton(totalPages);
+        pageNumbers.appendChild(lastBtn);
+    }
+}
+
+// Create a page number button
+function createPageButton(pageNum) {
+    const btn = document.createElement('button');
+    btn.textContent = pageNum;
+    btn.className = pageNum === currentPage 
+        ? 'px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold'
+        : 'px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition';
+    
+    btn.addEventListener('click', () => {
+        currentPage = pageNum;
+        updateArticlesDisplay();
+    });
+    
+    return btn;
+}
+
+// Go to specific page
+function goToPage(pageNum) {
+    if (pageNum >= 1 && pageNum <= totalPages) {
+        currentPage = pageNum;
+        updateArticlesDisplay();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+// Update display based on current state (filters, search, pagination)
+function updateArticlesDisplay() {
+    if (isSearchMode) {
+        displaySearchResults({ articles: searchResults, total_results: searchResults.length });
+    } else {
+        displayArticles();
+    }
+}
+
+// Display articles (wrapper for filtered display)
+function displayArticles() {
+    applyFiltersClientSide();
+}
+
 // Populate filter dropdowns dynamically
 function populateFilterDropdowns() {
     // Populate category dropdown
@@ -163,6 +296,9 @@ function clearAllFilters() {
 
 // Apply filters client-side (no API call!)
 function applyFiltersClientSide() {
+    // Reset to page 1 when filters change
+    currentPage = 1;
+    
     let filteredArticles = [...allArticlesRaw];
     
     // Apply category filter
@@ -295,15 +431,33 @@ function displayFilteredArticles(articlesToDisplay) {
     
     if (articlesToDisplay.length === 0) {
         showEmpty();
+        paginationContainer.classList.add('hidden');
         return;
     }
     
-    articleCount.textContent = `${articlesToDisplay.length} curated articles`;
+    // Calculate pagination
+    const totalArticles = articlesToDisplay.length;
+    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
+    const endIndex = startIndex + ARTICLES_PER_PAGE;
+    const currentPageArticles = articlesToDisplay.slice(startIndex, endIndex);
     
-    articlesToDisplay.forEach((article, index) => {
+    // Update article count to show pagination info
+    if (totalArticles > ARTICLES_PER_PAGE) {
+        const startNum = startIndex + 1;
+        const endNum = Math.min(endIndex, totalArticles);
+        articleCount.textContent = `Showing ${startNum}-${endNum} of ${totalArticles} curated articles`;
+    } else {
+        articleCount.textContent = `${totalArticles} curated articles`;
+    }
+    
+    // Display only current page articles
+    currentPageArticles.forEach((article, index) => {
         const articleCard = createArticleCard(article, index);
         articlesGrid.appendChild(articleCard);
     });
+    
+    // Update pagination controls
+    updatePaginationControls(totalArticles);
     
     hideLoading();
     articlesContainer.classList.remove('hidden');
@@ -559,6 +713,9 @@ async function performSearch(query) {
         return;
     }
     
+    // Reset to page 1 for new search
+    currentPage = 1;
+    
     showLoading();
     isSearchMode = true;
     
@@ -588,17 +745,28 @@ function displaySearchResults(data) {
     if (searchResults.length === 0) {
         articleCount.textContent = 'No results found';
         showEmpty();
+        paginationContainer.classList.add('hidden');
         return;
     }
     
-    const topResults = searchResults.slice(0, 5);
+    // Calculate pagination for search results
     const totalResults = searchResults.length;
+    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
+    const endIndex = startIndex + ARTICLES_PER_PAGE;
+    const currentPageResults = searchResults.slice(startIndex, endIndex);
     
-    articleCount.textContent = `Showing top ${topResults.length} of ${totalResults} results`;
+    // Update article count to show pagination info
+    if (totalResults > ARTICLES_PER_PAGE) {
+        const startNum = startIndex + 1;
+        const endNum = Math.min(endIndex, totalResults);
+        articleCount.textContent = `Showing ${startNum}-${endNum} of ${totalResults} search results`;
+    } else {
+        articleCount.textContent = `${totalResults} search results`;
+    }
     
-    const maxScore = Math.max(...topResults.map(a => a.relevance_score || 0));
+    const maxScore = Math.max(...searchResults.map(a => a.relevance_score || 0));
     
-    topResults.forEach((article, index) => {
+    currentPageResults.forEach((article, index) => {
         const articleCard = createArticleCard(article, index);
         
         if (article.relevance_score && maxScore > 0) {
@@ -611,6 +779,9 @@ function displaySearchResults(data) {
         
         articlesGrid.appendChild(articleCard);
     });
+    
+    // Update pagination controls
+    updatePaginationControls(totalResults);
     
     hideLoading();
     articlesContainer.classList.remove('hidden');
