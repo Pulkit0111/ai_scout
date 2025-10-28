@@ -15,6 +15,7 @@ from config import (
     SEARCH_SIMPLE_QUERY_THRESHOLD,
     SEARCH_MAX_RESULTS,
     SEARCH_SEMANTIC_THRESHOLD,
+    SEARCH_RELEVANCE_DISPLAY_THRESHOLD,
     SEARCH_USE_HYBRID,
     CATEGORIES
 )
@@ -255,6 +256,40 @@ def hybrid_search(query: str, articles: List[Dict]) -> List[Dict]:
     return results
 
 
+def filter_by_relevance_threshold(results: List[Dict], threshold_percent: float = SEARCH_RELEVANCE_DISPLAY_THRESHOLD) -> List[Dict]:
+    """
+    Filter search results by relevance percentage threshold.
+    Only return articles with relevance >= threshold.
+    
+    Args:
+        results: List of articles with relevance_score
+        threshold_percent: Minimum relevance percentage (0-100)
+    
+    Returns:
+        Filtered list of articles
+    """
+    if not results:
+        return []
+    
+    # Find max score for percentage calculation
+    max_score = max(a.get("relevance_score", 0) for a in results)
+    if max_score == 0:
+        return []
+    
+    # Filter by threshold
+    filtered = []
+    for article in results:
+        score = article.get("relevance_score", 0)
+        percentage = (score / max_score) * 100
+        
+        if percentage >= threshold_percent:
+            article["relevance_percentage"] = round(percentage)
+            filtered.append(article)
+    
+    print(f"Filtered to {len(filtered)} articles with relevance >= {threshold_percent}%")
+    return filtered
+
+
 def search_articles(query: str, articles: List[Dict]) -> Dict:
     """
     Main search function that intelligently chooses search method.
@@ -307,19 +342,23 @@ def search_articles(query: str, articles: List[Dict]) -> Dict:
         
         print(f"Narrowed search to {len(articles_to_search)} articles")
         results = hybrid_search(query, articles_to_search)
+        # Filter by relevance threshold (only show articles >= 75% relevance)
+        filtered_results = filter_by_relevance_threshold(results)
         return {
             "query": query,
-            "total_results": len(results[:SEARCH_MAX_RESULTS]),
-            "articles": results[:SEARCH_MAX_RESULTS],
+            "total_results": len(filtered_results),
+            "articles": filtered_results,
             "search_type": "hybrid"
         }
     elif client:
         # Semantic-only search with limited articles
         results = semantic_search(query, articles, max_articles=50)
+        # Filter by relevance threshold (only show articles >= 75% relevance)
+        filtered_results = filter_by_relevance_threshold(results)
         return {
             "query": query,
-            "total_results": len(results[:SEARCH_MAX_RESULTS]),
-            "articles": results[:SEARCH_MAX_RESULTS],
+            "total_results": len(filtered_results),
+            "articles": filtered_results,
             "search_type": "semantic"
         }
     else:

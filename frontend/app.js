@@ -708,6 +708,61 @@ function createHighlightCard(article, index) {
 
 // Search Functions
 
+let searchLoadingInterval = null;
+
+function showSearchLoading() {
+    // Show articles container but clear grid
+    articlesGrid.innerHTML = '';
+    articlesContainer.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    paginationContainer.classList.add('hidden');
+    
+    // Set title
+    currentCategoryTitle.textContent = 'Searching...';
+    
+    // Create rotating loading messages
+    const messages = [
+        'Processing natural language query',
+        'Analyzing semantic context',
+        'Filtering relevant articles',
+        'Almost there...'
+    ];
+    
+    let messageIndex = 0;
+    
+    // Create loading card
+    const loadingCard = document.createElement('div');
+    loadingCard.id = 'searchLoadingCard';
+    loadingCard.className = 'col-span-full flex flex-col items-center justify-center py-20';
+    loadingCard.innerHTML = `
+        <div class="loader-spinner mb-4"></div>
+        <div class="text-xl font-semibold text-white mb-2" id="searchLoadingText">${messages[0]}</div>
+        <div class="text-gray-400">Please wait...</div>
+    `;
+    
+    articlesGrid.appendChild(loadingCard);
+    
+    // Rotate messages every 2 seconds
+    searchLoadingInterval = setInterval(() => {
+        messageIndex = (messageIndex + 1) % messages.length;
+        const textElement = document.getElementById('searchLoadingText');
+        if (textElement) {
+            textElement.textContent = messages[messageIndex];
+        }
+    }, 2000);
+}
+
+function hideSearchLoading() {
+    if (searchLoadingInterval) {
+        clearInterval(searchLoadingInterval);
+        searchLoadingInterval = null;
+    }
+    const loadingCard = document.getElementById('searchLoadingCard');
+    if (loadingCard) {
+        loadingCard.remove();
+    }
+}
+
 async function performSearch(query) {
     if (!query) {
         clearSearch();
@@ -717,7 +772,7 @@ async function performSearch(query) {
     // Reset to page 1 for new search
     currentPage = 1;
     
-    showLoading();
+    showSearchLoading();
     isSearchMode = true;
     
     try {
@@ -730,11 +785,12 @@ async function performSearch(query) {
         const data = await response.json();
         searchResults = data.articles || [];
         
+        hideSearchLoading();
         displaySearchResults(data);
     } catch (error) {
         console.error('Error performing search:', error);
+        hideSearchLoading();
         showError('Search failed. Please try again.');
-        hideLoading();
     }
 }
 
@@ -743,39 +799,43 @@ function displaySearchResults(data) {
     
     currentCategoryTitle.textContent = 'Search Results';
     
-    // Hide pagination for search results (showing top results only)
+    // Hide pagination for search results
     paginationContainer.classList.add('hidden');
     
     if (searchResults.length === 0) {
-        articleCount.textContent = 'No results found';
+        articleCount.textContent = 'No highly relevant results found (75%+ relevance required)';
         showEmpty();
         return;
     }
     
-    // Display all search results (already limited to top 6 by backend)
+    // Display all search results (filtered to >= 75% relevance by backend)
     const totalResults = searchResults.length;
-    articleCount.textContent = totalResults === 1 
-        ? `${totalResults} result found`
-        : `Top ${totalResults} results`;
-    
-    const maxScore = Math.max(...searchResults.map(a => a.relevance_score || 0));
+    if (totalResults === 1) {
+        articleCount.textContent = `${totalResults} highly relevant result found`;
+    } else {
+        articleCount.textContent = `${totalResults} highly relevant results (≥75% relevance)`;
+    }
     
     searchResults.forEach((article, index) => {
         const articleCard = createArticleCard(article, index);
         
-        // Add relevance score indicator
-        if (article.relevance_score && maxScore > 0) {
-            const percentage = Math.round((article.relevance_score / maxScore) * 100);
+        // Add relevance percentage indicator (already calculated by backend)
+        const relevancePercentage = article.relevance_percentage || 0;
+        if (relevancePercentage > 0) {
             const scoreIndicator = document.createElement('div');
-            scoreIndicator.className = 'relevance-score text-sm mt-3 flex items-center gap-1';
-            scoreIndicator.innerHTML = `<i class="fas fa-star text-yellow-400"></i> Relevance: ${percentage}%`;
+            scoreIndicator.className = 'relevance-score text-sm mt-3 flex items-center gap-2';
+            scoreIndicator.innerHTML = `
+                <div class="flex items-center gap-1">
+                    <i class="fas fa-star text-yellow-400"></i>
+                    <span class="font-semibold">${relevancePercentage}% Relevant</span>
+                </div>
+            `;
             articleCard.appendChild(scoreIndicator);
         }
         
         articlesGrid.appendChild(articleCard);
     });
     
-    hideLoading();
     articlesContainer.classList.remove('hidden');
     emptyState.classList.add('hidden');
 }
