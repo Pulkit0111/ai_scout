@@ -337,14 +337,18 @@ function displaySearchResults(data) {
     
     articleCount.textContent = `${searchResults.length} results`;
     
+    // Find max score for percentage calculation
+    const maxScore = Math.max(...searchResults.map(a => a.relevance_score || 0));
+    
     searchResults.forEach((article, index) => {
         const articleCard = createArticleCard(article, index);
         
         // Add relevance score indicator if available
-        if (article.relevance_score) {
+        if (article.relevance_score && maxScore > 0) {
+            const percentage = Math.round((article.relevance_score / maxScore) * 100);
             const scoreIndicator = document.createElement('div');
             scoreIndicator.className = 'relevance-score text-sm mt-3 flex items-center gap-1';
-            scoreIndicator.innerHTML = `<i class="fas fa-star"></i> Relevance Score: ${Math.round(article.relevance_score)}`;
+            scoreIndicator.innerHTML = `<i class="fas fa-star"></i> Relevance: ${percentage}%`;
             articleCard.appendChild(scoreIndicator);
         }
         
