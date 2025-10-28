@@ -163,7 +163,7 @@ function toggleFilter(filterName, filterType) {
         // For time filters, only allow one at a time
         if (filterType === 'time') {
             activeFilters.forEach(f => {
-                if (f === '24h' || f === '7d') {
+                if (f === '24h' || f === '7d' || f === '30d') {
                     activeFilters.delete(f);
                 }
             });
