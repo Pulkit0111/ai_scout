@@ -4,6 +4,9 @@ const API_BASE_URL = window.location.origin;
 // State
 let allArticles = {};
 let currentCategory = 'all';
+let isSearchMode = false;
+let searchResults = [];
+let searchDebounceTimer = null;
 
 // DOM Elements
 const categoryTabsContainer = document.getElementById('categoryTabs');
@@ -15,6 +18,12 @@ const refreshBtn = document.getElementById('refreshBtn');
 const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 const currentCategoryTitle = document.getElementById('currentCategory');
 const articleCount = document.getElementById('articleCount');
+const searchInput = document.getElementById('searchInput');
+const clearSearchBtn = document.getElementById('clearSearchBtn');
+const searchInfoBanner = document.getElementById('searchInfoBanner');
+const searchQuery = document.getElementById('searchQuery');
+const searchMetadata = document.getElementById('searchMetadata');
+const closeSearchBtn = document.getElementById('closeSearchBtn');
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,6 +37,25 @@ document.addEventListener('DOMContentLoaded', () => {
     
     downloadPdfBtn.addEventListener('click', () => {
         downloadNewsletter();
+    });
+    
+    // Search event listeners
+    searchInput.addEventListener('input', (e) => {
+        handleSearchInput(e.target.value);
+    });
+    
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            performSearch(searchInput.value.trim());
+        }
+    });
+    
+    clearSearchBtn.addEventListener('click', () => {
+        clearSearch();
+    });
+    
+    closeSearchBtn.addEventListener('click', () => {
+        clearSearch();
     });
 });
 
@@ -110,6 +138,11 @@ async function fetchArticles() {
 // Display articles
 function displayArticles() {
     articlesGrid.innerHTML = '';
+    
+    // Hide search banner when in category mode
+    if (!isSearchMode) {
+        searchInfoBanner.classList.add('hidden');
+    }
     
     let articlesToDisplay = [];
     
@@ -264,5 +297,121 @@ function stripHtmlTags(html) {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
     return tmp.textContent || tmp.innerText || '';
+}
+
+// Search Functions
+
+function handleSearchInput(value) {
+    // Show/hide clear button
+    if (value.trim()) {
+        clearSearchBtn.classList.remove('hidden');
+        searchInput.classList.add('search-active');
+    } else {
+        clearSearchBtn.classList.add('hidden');
+        searchInput.classList.remove('search-active');
+        
+        // If search is cleared, exit search mode
+        if (isSearchMode) {
+            clearSearch();
+        }
+        return;
+    }
+    
+    // Debounce search
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+        performSearch(value.trim());
+    }, 500);
+}
+
+async function performSearch(query) {
+    if (!query) {
+        clearSearch();
+        return;
+    }
+    
+    showLoading();
+    isSearchMode = true;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
+        
+        if (!response.ok) {
+            throw new Error('Search failed');
+        }
+        
+        const data = await response.json();
+        searchResults = data.articles || [];
+        
+        displaySearchResults(data);
+    } catch (error) {
+        console.error('Error performing search:', error);
+        showError('Search failed. Please try again.');
+        hideLoading();
+    }
+}
+
+function displaySearchResults(data) {
+    articlesGrid.innerHTML = '';
+    
+    // Show search info banner
+    searchInfoBanner.classList.remove('hidden');
+    searchQuery.textContent = `"${data.query}"`;
+    
+    // Display search metadata
+    let metadataText = `Search type: ${data.search_type || 'keyword'}`;
+    if (data.extracted_criteria) {
+        const criteria = data.extracted_criteria;
+        if (criteria.categories && criteria.categories.length > 0) {
+            metadataText += ` | Categories: ${criteria.categories.join(', ')}`;
+        }
+        if (criteria.date_filter && criteria.date_filter !== 'any') {
+            metadataText += ` | Time: ${criteria.date_filter}`;
+        }
+    }
+    searchMetadata.textContent = metadataText;
+    
+    currentCategoryTitle.textContent = 'Search Results';
+    
+    if (searchResults.length === 0) {
+        articleCount.textContent = 'No results found';
+        showEmpty();
+        return;
+    }
+    
+    articleCount.textContent = `${searchResults.length} results`;
+    
+    searchResults.forEach((article, index) => {
+        const articleCard = createArticleCard(article, index);
+        
+        // Add relevance score indicator if available
+        if (article.relevance_score) {
+            const scoreIndicator = document.createElement('div');
+            scoreIndicator.className = 'text-xs text-blue-400 mt-2';
+            scoreIndicator.innerHTML = `<i class="fas fa-chart-line"></i> Relevance: ${Math.round(article.relevance_score)}`;
+            articleCard.appendChild(scoreIndicator);
+        }
+        
+        articlesGrid.appendChild(articleCard);
+    });
+    
+    hideLoading();
+    articlesContainer.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+}
+
+function clearSearch() {
+    isSearchMode = false;
+    searchResults = [];
+    searchInput.value = '';
+    clearSearchBtn.classList.add('hidden');
+    searchInput.classList.remove('search-active');
+    searchInfoBanner.classList.add('hidden');
+    
+    // Clear debounce timer
+    clearTimeout(searchDebounceTimer);
+    
+    // Return to current category view
+    displayArticles();
 }
 
