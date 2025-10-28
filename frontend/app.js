@@ -253,11 +253,18 @@ function getFilteredArticles() {
     
     // 4. Filter by search query
     if (AppState.filters.searchQuery) {
-        const query = AppState.filters.searchQuery.toLowerCase();
-        articles = articles.filter(a => 
-            a.title.toLowerCase().includes(query) ||
-            (a.summary && a.summary.toLowerCase().includes(query))
-        );
+        const query = AppState.filters.searchQuery.toLowerCase().trim();
+        const queryWords = query.split(/\s+/); // Split by whitespace
+        
+        articles = articles.filter(a => {
+            const title = (a.title || '').toLowerCase();
+            const summary = (a.summary || '').toLowerCase();
+            const source = getSourceName(a.source).toLowerCase();
+            const searchText = `${title} ${summary} ${source}`;
+            
+            // Check if all query words are present in the search text
+            return queryWords.every(word => searchText.includes(word));
+        });
     }
     
     // 5. Sort

@@ -205,7 +205,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
-    align-items: center;
+    align-items: flex-end;
 }
 
 .filter-group {
@@ -253,22 +253,24 @@ body {
 .clear-filters-btn {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     padding: 10px 16px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--bg-tertiary);
+    background: var(--color-error);
+    border: 1px solid var(--color-error);
     border-radius: 6px;
-    color: var(--text-secondary);
+    color: white;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    height: 42px;
+    margin-bottom: 0;
 }
 
 .clear-filters-btn:hover {
-    background: var(--color-error);
-    border-color: var(--color-error);
-    color: white;
+    background: #dc2626;
+    border-color: #dc2626;
+    transform: translateY(-1px);
 }
 
 /* ===== Articles Section ===== */
@@ -286,13 +288,13 @@ body {
 
 @media (min-width: 768px) {
     .articles-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (min-width: 1024px) {
     .articles-grid {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
@@ -311,6 +313,8 @@ body {
     height: 100%;
     text-decoration: none;
     color: inherit;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .article-card:hover {
@@ -364,6 +368,8 @@ body {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 .article-summary {
@@ -374,6 +380,8 @@ body {
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 .article-meta {
