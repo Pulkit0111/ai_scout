@@ -6,6 +6,8 @@ let allArticles = {};
 let currentCategory = 'all';
 let isSearchMode = false;
 let searchResults = [];
+let isLast24HoursFilter = false;
+let weeklySummaryData = null;
 
 // DOM Elements
 const categoryTabsContainer = document.getElementById('categoryTabs');
@@ -20,19 +22,30 @@ const articleCount = document.getElementById('articleCount');
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
+const weeklySummarySection = document.getElementById('weeklySummarySection');
+const statsGrid = document.getElementById('statsGrid');
+const highlightsContainer = document.getElementById('highlightsContainer');
+const filter24hBtn = document.getElementById('filter24hBtn');
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     initializeCategories();
     fetchArticles();
+    fetchWeeklySummary();
     
     // Event listeners
     refreshBtn.addEventListener('click', () => {
         fetchArticles();
+        fetchWeeklySummary();
     });
     
     downloadPdfBtn.addEventListener('click', () => {
         downloadNewsletter();
+    });
+    
+    // Filter event listener
+    filter24hBtn.addEventListener('click', () => {
+        toggle24HourFilter();
     });
     
     // Search event listeners
@@ -120,7 +133,14 @@ async function fetchArticles() {
     showLoading();
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/feeds`);
+        let url = `${API_BASE_URL}/api/feeds`;
+        
+        // Add filter parameter if 24h filter is active
+        if (isLast24HoursFilter) {
+            url += '?filter=24h';
+        }
+        
+        const response = await fetch(url);
         
         if (!response.ok) {
             throw new Error('Failed to fetch articles');
@@ -295,6 +315,149 @@ function stripHtmlTags(html) {
     return tmp.textContent || tmp.innerText || '';
 }
 
+// Weekly Summary Functions
+
+async function fetchWeeklySummary() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/weekly-summary`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to fetch weekly summary');
+        }
+        
+        const data = await response.json();
+        weeklySummaryData = data.summary;
+        
+        displayWeeklySummary();
+    } catch (error) {
+        console.error('Error fetching weekly summary:', error);
+        // Don't show error to user, just hide the section
+        weeklySummarySection.classList.add('hidden');
+    }
+}
+
+function displayWeeklySummary() {
+    if (!weeklySummaryData) {
+        weeklySummarySection.classList.add('hidden');
+        return;
+    }
+    
+    const stats = weeklySummaryData.statistics;
+    const highlights = weeklySummaryData.highlights;
+    
+    // Display statistics
+    statsGrid.innerHTML = '';
+    
+    // Total Articles
+    const totalCard = createStatCard(
+        'fas fa-newspaper',
+        stats.total_articles || 0,
+        'Total Articles',
+        'bg-blue-700'
+    );
+    statsGrid.appendChild(totalCard);
+    
+    // Categories
+    const categoriesCount = Object.keys(stats.category_breakdown || {}).length;
+    const categoriesCard = createStatCard(
+        'fas fa-layer-group',
+        categoriesCount,
+        'Categories',
+        'bg-purple-700'
+    );
+    statsGrid.appendChild(categoriesCard);
+    
+    // Top Sources
+    const sourcesCount = (stats.top_sources || []).length;
+    const sourcesCard = createStatCard(
+        'fas fa-rss',
+        sourcesCount,
+        'Sources',
+        'bg-green-700'
+    );
+    statsGrid.appendChild(sourcesCard);
+    
+    // Display highlights
+    highlightsContainer.innerHTML = '';
+    
+    if (highlights && highlights.length > 0) {
+        highlights.slice(0, 3).forEach((article, index) => {
+            const highlightCard = createHighlightCard(article, index + 1);
+            highlightsContainer.appendChild(highlightCard);
+        });
+    } else {
+        highlightsContainer.innerHTML = '<p class="text-blue-200 text-sm">No highlights available</p>';
+    }
+    
+    // Show the section
+    weeklySummarySection.classList.remove('hidden');
+}
+
+function createStatCard(icon, value, label, bgColor) {
+    const card = document.createElement('div');
+    card.className = `stat-card ${bgColor} rounded-lg p-4 text-center`;
+    card.innerHTML = `
+        <i class="${icon} text-3xl mb-2"></i>
+        <div class="text-3xl font-bold">${value}</div>
+        <div class="text-sm opacity-90">${label}</div>
+    `;
+    return card;
+}
+
+function createHighlightCard(article, index) {
+    const card = document.createElement('div');
+    card.className = 'highlight-card bg-white bg-opacity-10 rounded-lg p-4';
+    
+    const title = document.createElement('h4');
+    title.className = 'font-semibold text-white mb-2 line-clamp-2';
+    title.textContent = `${index}. ${article.title || 'No Title'}`;
+    
+    const meta = document.createElement('div');
+    meta.className = 'text-sm text-blue-200 mb-2';
+    meta.innerHTML = `
+        <i class="fas fa-calendar-alt"></i> ${article.published_date || 'N/A'}
+        <span class="mx-2">•</span>
+        <i class="fas fa-tag"></i> ${article.category || 'Uncategorized'}
+    `;
+    
+    const link = document.createElement('a');
+    link.href = article.link || '#';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.className = 'text-blue-300 hover:text-blue-100 text-sm flex items-center mt-2';
+    link.innerHTML = `
+        Read article
+        <i class="fas fa-external-link-alt ml-2 text-xs"></i>
+    `;
+    
+    card.appendChild(title);
+    card.appendChild(meta);
+    card.appendChild(link);
+    
+    return card;
+}
+
+// Filter Functions
+
+function toggle24HourFilter() {
+    isLast24HoursFilter = !isLast24HoursFilter;
+    
+    // Update button appearance
+    if (isLast24HoursFilter) {
+        filter24hBtn.classList.add('active');
+    } else {
+        filter24hBtn.classList.remove('active');
+    }
+    
+    // Clear search mode when toggling filter
+    if (isSearchMode) {
+        clearSearch();
+    }
+    
+    // Fetch articles with or without filter
+    fetchArticles();
+}
+
 // Search Functions
 
 async function performSearch(query) {
@@ -370,6 +533,12 @@ function clearSearch() {
     searchInput.value = '';
     clearSearchBtn.classList.add('hidden');
     searchInput.classList.remove('search-active');
+    
+    // Clear 24h filter when clearing search
+    if (isLast24HoursFilter) {
+        isLast24HoursFilter = false;
+        filter24hBtn.classList.remove('active');
+    }
     
     // Return to current category view
     displayArticles();
