@@ -28,13 +28,11 @@ const SOURCE_TYPES = {
 // ===== Application State =====
 const AppState = {
     allArticles: [],
-    searchResults: null, // Null when not searching, array when search active
     currentTab: 'official',
     filters: {
         dateRange: 'all',
         category: 'all',
-        sortBy: 'newest',
-        searchQuery: ''
+        sortBy: 'newest'
     },
     pagination: {
         currentPage: 1,
@@ -67,6 +65,9 @@ function initDOM() {
         // Search
         globalSearch: document.getElementById('globalSearch'),
         searchBtn: document.getElementById('searchBtn'),
+        searchModal: document.getElementById('searchModal'),
+        closeSearch: document.getElementById('closeSearch'),
+        searchResultsContent: document.getElementById('searchResultsContent'),
         // Articles
         articlesGrid: document.getElementById('articlesGrid'),
         emptyState: document.getElementById('emptyState'),
@@ -116,6 +117,12 @@ function setupEventListeners() {
         if (e.target === elements.overviewModal) closeOverview();
     });
     
+    // Search Modal
+    elements.closeSearch.addEventListener('click', closeSearchModal);
+    elements.searchModal.addEventListener('click', (e) => {
+        if (e.target === elements.searchModal) closeSearchModal();
+    });
+    
     // Keyboard navigation
     document.addEventListener('keydown', handleKeyboardNavigation);
 }
@@ -129,9 +136,13 @@ function handleKeyboardNavigation(e) {
         changePage(1);
     }
     
-    // Escape key to close modal
-    if (e.key === 'Escape' && !elements.overviewModal.classList.contains('hidden')) {
-        closeOverview();
+    // Escape key to close modals
+    if (e.key === 'Escape') {
+        if (!elements.searchModal.classList.contains('hidden')) {
+            closeSearchModal();
+        } else if (!elements.overviewModal.classList.contains('hidden')) {
+            closeOverview();
+        }
     }
     
     // Number keys (1-5) for tab switching
@@ -222,8 +233,6 @@ function clearAllFilters() {
     AppState.filters.dateRange = 'all';
     AppState.filters.category = 'all';
     AppState.filters.sortBy = 'newest';
-    AppState.filters.searchQuery = '';
-    AppState.searchResults = null; // Clear search results
     AppState.pagination.currentPage = 1;
     
     // Reset UI elements
@@ -231,6 +240,9 @@ function clearAllFilters() {
     elements.categoryFilter.value = 'all';
     elements.sortFilter.value = 'newest';
     elements.globalSearch.value = '';
+    
+    // Close search modal if open
+    closeSearchModal();
     
     // Re-render
     renderArticles();
@@ -240,15 +252,14 @@ async function performSearch() {
     const query = elements.globalSearch.value.trim();
     
     if (!query) {
-        // If empty, just show all articles for current tab
-        AppState.filters.searchQuery = '';
-        AppState.searchResults = null;
-        renderArticles();
+        // If empty, just close search modal if open
+        closeSearchModal();
         return;
     }
     
-    // Show inline search loader with rotating messages
-    showSearchLoader();
+    // Show search modal with loading state
+    openSearchModal();
+    showSearchModalLoader();
     
     try {
         // Use backend semantic search API
@@ -257,55 +268,19 @@ async function performSearch() {
         
         const data = await response.json();
         
-        // Limit to max 6 articles (backend already filters to >=75%)
-        const limitedResults = (data.articles || []).slice(0, 6);
+        console.log(`Search results: ${data.total_results} articles found`);
         
-        // Store search results temporarily
-        AppState.searchResults = limitedResults;
-        AppState.filters.searchQuery = query;
-        AppState.pagination.currentPage = 1;
-        
-        hideSearchLoader();
-        renderArticles();
+        // Render search results in modal (backend already filters to >=75% and max 6)
+        renderSearchResults(query, data.articles || [], data.search_type || 'semantic');
     } catch (error) {
         console.error('Semantic search failed:', error);
-        hideSearchLoader();
-        showError('Search failed. Try a different query or check your connection.');
+        renderSearchError('Search failed. Try a different query or check your connection.');
     }
 }
 
 function getFilteredArticles() {
-    let articles;
-    
-    // If we have search results from semantic search, use those
-    if (AppState.searchResults !== null) {
-        articles = [...AppState.searchResults];
-        
-        // Still apply tab filter to search results
-        const tabSources = SOURCE_TYPES[AppState.currentTab];
-        articles = articles.filter(a => tabSources.includes(a.source));
-        
-        // Apply date range filter
-        if (AppState.filters.dateRange !== 'all') {
-            articles = filterByDate(articles, AppState.filters.dateRange);
-        }
-        
-        // Apply category filter
-        if (AppState.filters.category !== 'all') {
-            articles = articles.filter(a => a.category === AppState.filters.category);
-        }
-        
-        // Note: Semantic search results are already relevance-sorted by backend
-        // But we can still apply user's sort preference
-        if (AppState.filters.sortBy !== 'newest') {
-            articles = sortArticles(articles, AppState.filters.sortBy);
-        }
-        
-        return articles;
-    }
-    
-    // Normal filtering (no search active)
-    articles = [...AppState.allArticles];
+    // Normal filtering (search results are now shown in modal, not here)
+    let articles = [...AppState.allArticles];
     
     // 1. Filter by active tab (source type)
     const tabSources = SOURCE_TYPES[AppState.currentTab];
@@ -377,15 +352,8 @@ function renderArticles() {
     const filteredArticles = getFilteredArticles();
     const totalArticles = filteredArticles.length;
     
-    // Update count with search indicator
-    if (AppState.searchResults !== null) {
-        const maxShown = Math.min(totalArticles, 6);
-        elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''} (showing top ${maxShown} with ≥75% relevance)`;
-        elements.articleCount.style.color = '#3b82f6'; // Blue to indicate search mode
-    } else {
-        elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''}`;
-        elements.articleCount.style.color = ''; // Reset to default
-    }
+    // Update count
+    elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''}`;
     
     // Paginate
     const totalPages = Math.ceil(totalArticles / AppState.pagination.perPage);
@@ -424,20 +392,10 @@ function createArticleCard(article) {
     const summary = stripHtml(article.summary || '').substring(0, 200);
     const date = formatDate(article.published_date);
     
-    // Show relevance score if this is a search result
-    // Backend sends as decimal (0-1), so multiply by 100 to get percentage
-    // But if already > 1, it's already a percentage
-    let relevanceScore = null;
-    if (article.relevance_score) {
-        const score = parseFloat(article.relevance_score);
-        relevanceScore = score > 1 ? Math.round(score) : Math.round(score * 100);
-    }
-    
     return `
         <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="article-card">
             <div class="article-header">
                 <span class="article-source ${sourceType}">${sourceName}</span>
-                ${relevanceScore ? `<span class="article-relevance"><i class="fas fa-brain"></i> ${relevanceScore}% Match</span>` : ''}
             </div>
             <h3 class="article-title">${escapeHtml(article.title)}</h3>
             <p class="article-summary">${escapeHtml(summary)}${summary.length >= 200 ? '...' : ''}</p>
@@ -475,6 +433,105 @@ function updatePagination(totalPages) {
     
     elements.prevPage.disabled = currentPage <= 1;
     elements.nextPage.disabled = currentPage >= totalPages;
+}
+
+// ===== Search Modal =====
+function openSearchModal() {
+    elements.searchModal.classList.remove('hidden');
+}
+
+function closeSearchModal() {
+    elements.searchModal.classList.add('hidden');
+}
+
+function showSearchModalLoader() {
+    elements.searchResultsContent.innerHTML = `
+        <div class="search-loader" style="display: flex; flex-direction: column; align-items: center; padding: 60px 20px;">
+            <div class="search-loader-spinner" style="width: 60px; height: 60px; border: 4px solid var(--bg-tertiary); border-top-color: var(--color-primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 24px;"></div>
+            <p style="font-size: 18px; font-weight: 600; color: var(--text-secondary); animation: pulse-text 2s ease-in-out infinite;">
+                <i class="fas fa-brain"></i> Analyzing with AI...
+            </p>
+        </div>
+    `;
+}
+
+function renderSearchResults(query, articles, searchType) {
+    if (!articles || articles.length === 0) {
+        elements.searchResultsContent.innerHTML = `
+            <div class="search-empty-state">
+                <i class="fas fa-search"></i>
+                <h3>No results found</h3>
+                <p>No articles matched your search query with ≥75% relevance.</p>
+                <p class="mt-2 text-sm">Try a different query or use more general terms.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const resultsHTML = `
+        <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--bg-tertiary);">
+            <p style="font-size: 14px; color: var(--text-secondary);">
+                <i class="fas fa-brain text-blue-500 mr-2"></i>
+                Found <strong>${articles.length}</strong> relevant article${articles.length !== 1 ? 's' : ''} with ≥75% relevance
+                <span class="ml-2 text-xs text-gray-500">(${searchType} search)</span>
+            </p>
+            <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 4px;">
+                Query: "${escapeHtml(query)}"
+            </p>
+        </div>
+        ${articles.map(article => createSearchResultCard(article)).join('')}
+    `;
+    
+    elements.searchResultsContent.innerHTML = resultsHTML;
+}
+
+function createSearchResultCard(article) {
+    const sourceType = getSourceType(article.source);
+    const sourceName = getSourceName(article.source);
+    const summary = stripHtml(article.summary || '').substring(0, 250);
+    const date = formatDate(article.published_date);
+    
+    // Get relevance percentage (backend sends relevance_percentage already calculated)
+    const relevance = article.relevance_percentage || Math.round(article.relevance_score || 0);
+    
+    return `
+        <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="search-result-item">
+            <div class="search-result-header">
+                <span class="article-source ${sourceType}">${sourceName}</span>
+                <span class="search-result-relevance">
+                    <i class="fas fa-brain"></i> ${relevance}% Match
+                </span>
+            </div>
+            <h3 class="search-result-title">${escapeHtml(article.title)}</h3>
+            <p class="search-result-summary">${escapeHtml(summary)}${summary.length >= 250 ? '...' : ''}</p>
+            <div class="search-result-meta">
+                <span>
+                    <i class="far fa-calendar"></i>
+                    ${date}
+                </span>
+                ${article.category ? `
+                    <span>
+                        <i class="fas fa-tag"></i>
+                        ${escapeHtml(article.category)}
+                    </span>
+                ` : ''}
+                <span style="color: var(--color-primary);">
+                    <i class="fas fa-external-link-alt"></i>
+                    Read article
+                </span>
+            </div>
+        </a>
+    `;
+}
+
+function renderSearchError(message) {
+    elements.searchResultsContent.innerHTML = `
+        <div class="search-empty-state">
+            <i class="fas fa-exclamation-triangle" style="color: var(--color-error);"></i>
+            <h3>Search Failed</h3>
+            <p>${escapeHtml(message)}</p>
+        </div>
+    `;
 }
 
 // ===== Overview Modal =====
@@ -654,48 +711,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// ===== Search Loader with Rotating Messages =====
-let searchLoaderInterval = null;
-const searchMessages = [
-    'Analyzing with AI...',
-    'Understanding your query...',
-    'Comparing embeddings...',
-    'Finding relevant articles...',
-    'Calculating relevance scores...',
-        'Almost there...'
-    ];
-    
-function showSearchLoader() {
-    // Hide articles grid and empty state
-    elements.articlesGrid.style.display = 'none';
-    elements.emptyState.classList.add('hidden');
-    
-    // Show search loader
-    elements.searchLoader.classList.remove('hidden');
-    
-    // Start rotating messages
-    let messageIndex = 0;
-    elements.searchLoaderText.textContent = searchMessages[0];
-    
-    searchLoaderInterval = setInterval(() => {
-        messageIndex = (messageIndex + 1) % searchMessages.length;
-        elements.searchLoaderText.textContent = searchMessages[messageIndex];
-    }, 1500); // Change message every 1.5 seconds
-}
-
-function hideSearchLoader() {
-    // Clear interval
-    if (searchLoaderInterval) {
-        clearInterval(searchLoaderInterval);
-        searchLoaderInterval = null;
-    }
-    
-    // Hide search loader
-    elements.searchLoader.classList.add('hidden');
-    
-    // Show articles grid again
-    elements.articlesGrid.style.display = '';
-}
 
 // ===== UI State Functions =====
 function showLoading(message = 'Loading AI updates...') {

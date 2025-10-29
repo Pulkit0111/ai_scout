@@ -261,6 +261,9 @@ def filter_by_relevance_threshold(results: List[Dict], threshold_percent: float 
     Filter search results by relevance percentage threshold.
     Only return top N articles with relevance >= threshold.
     
+    For semantic/hybrid search: Uses ABSOLUTE relevance_score (already 0-100)
+    For keyword search: Uses RELATIVE percentage based on max score
+    
     Args:
         results: List of articles with relevance_score
         threshold_percent: Minimum relevance percentage (0-100)
@@ -272,25 +275,37 @@ def filter_by_relevance_threshold(results: List[Dict], threshold_percent: float 
     if not results:
         return []
     
-    # Find max score for percentage calculation
-    max_score = max(a.get("relevance_score", 0) for a in results)
-    if max_score == 0:
-        return []
+    # Determine search method from first result
+    search_method = results[0].get("search_method", "keyword") if results else "keyword"
     
-    # Filter by threshold
     filtered = []
-    for article in results:
-        score = article.get("relevance_score", 0)
-        percentage = (score / max_score) * 100
+    
+    if search_method in ["semantic", "hybrid"]:
+        # For semantic/hybrid search: relevance_score is already absolute (0-100)
+        for article in results:
+            score = article.get("relevance_score", 0)
+            
+            if score >= threshold_percent:
+                article["relevance_percentage"] = round(score)
+                filtered.append(article)
+    else:
+        # For keyword search: calculate relative percentage
+        max_score = max(a.get("relevance_score", 0) for a in results)
+        if max_score == 0:
+            return []
         
-        if percentage >= threshold_percent:
-            article["relevance_percentage"] = round(percentage)
-            filtered.append(article)
+        for article in results:
+            score = article.get("relevance_score", 0)
+            percentage = (score / max_score) * 100
+            
+            if percentage >= threshold_percent:
+                article["relevance_percentage"] = round(percentage)
+                filtered.append(article)
     
     # Limit to top N results
     top_results = filtered[:max_results]
     
-    print(f"Filtered to {len(filtered)} articles with relevance >= {threshold_percent}%, returning top {len(top_results)}")
+    print(f"Filtered to {len(top_results)} articles with relevance >= {threshold_percent}% (method: {search_method})")
     return top_results
 
 
