@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Scout - Latest AI News & Research</title>
+    <title>AI Scout - Your AI News Aggregator</title>
     
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,477 +11,222 @@
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <style>
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-        
-        .category-tab {
-            transition: all 0.3s ease;
-        }
-        
-        .category-tab.active {
-            background-color: #2563eb;
-            color: white;
-        }
-        
-        .category-tab:hover {
-            transform: translateY(-2px);
-        }
-        
-        .article-card {
-            transition: all 0.3s ease;
-        }
-        
-        .article-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-        
-        .loader-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: rgba(17, 24, 39, 0.95);
-            backdrop-filter: blur(8px);
-            z-index: 9999;
-        }
-        
-        .loader {
-            width: 80px;
-            height: 80px;
-            border: 6px solid #1e293b;
-            border-top: 6px solid #3b82f6;
-            border-right: 6px solid #60a5fa;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .loader-text {
-            margin-top: 2rem;
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #e5e7eb;
-            animation: pulse 2s ease-in-out infinite;
-        }
-        
-        .loader-subtext {
-            margin-top: 0.5rem;
-            font-size: 0.875rem;
-            color: #9ca3af;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-        }
-        
-        .loader-dots::after {
-            content: '';
-            animation: dots 1.5s steps(4, end) infinite;
-        }
-        
-        @keyframes dots {
-            0%, 20% { content: ''; }
-            40% { content: '.'; }
-            60% { content: '..'; }
-            80%, 100% { content: '...'; }
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .loader-icon {
-            font-size: 2rem;
-            color: #3b82f6;
-            margin-bottom: 1rem;
-            animation: float 3s ease-in-out infinite;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-        
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .search-container {
-            position: relative;
-        }
-        
-        .search-input:focus {
-            outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-        
-        .search-active {
-            border-color: #2563eb;
-            background-color: #1e293b;
-        }
-        
-        .search-results-badge {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        }
-        
-        .relevance-score {
-            color: #10b981;
-            font-weight: 600;
-        }
-        
-        .weekly-summary-card {
-            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
-        }
-        
-        .stat-card {
-            transition: all 0.3s ease;
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-4px);
-        }
-        
-        .highlight-card {
-            transition: all 0.3s ease;
-            border-left: 4px solid #3b82f6;
-        }
-        
-        .highlight-card:hover {
-            transform: translateX(4px);
-        }
-        
-        .filter-btn {
-            transition: all 0.3s ease;
-        }
-        
-        .filter-btn.active {
-            background-color: #10b981;
-            color: white;
-        }
-        
-        .filter-btn:hover:not(.active) {
-            background-color: #374151;
-        }
-        
-        /* Tab Navigation Styles */
-        .tab-nav {
-            border-bottom: 2px solid #374151;
-        }
-        
-        .tab-button {
-            padding: 1rem 2rem;
-            font-weight: 600;
-            color: #9ca3af;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s ease;
-            position: relative;
-            bottom: -2px;
-        }
-        
-        .tab-button:hover {
-            color: #e5e7eb;
-        }
-        
-        .tab-button.active {
-            color: #3b82f6;
-            border-bottom-color: #3b82f6;
-        }
-        
-        /* Tag-style Filter Styles */
-        .filter-tag {
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            border: 2px solid #4b5563;
-            background-color: #1f2937;
-            color: #d1d5db;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        
-        .filter-tag:hover {
-            border-color: #6b7280;
-            background-color: #374151;
-        }
-        
-        .filter-tag.active {
-            background-color: #2563eb;
-            border-color: #2563eb;
-            color: white;
-        }
-        
-        .filter-tag.active::before {
-            content: '✓ ';
-            font-weight: bold;
-        }
-        
-        .time-filter {
-            border-color: #059669;
-        }
-        
-        .time-filter.active {
-            background-color: #059669;
-            border-color: #059669;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-    </style>
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body class="bg-gray-900">
-    <!-- Header -->
-    <header class="bg-gray-800 shadow-lg border-b border-gray-700">
-        <div class="container mx-auto px-4 py-6">
-            <div class="flex items-center justify-between flex-wrap gap-4">
-                <div class="flex items-center space-x-3">
-                    <i class="fas fa-robot text-4xl text-blue-400"></i>
-                    <div>
-                        <h1 class="text-3xl font-bold text-white">AI Scout</h1>
-                        <p class="text-sm text-gray-400">Curated AI Research & Updates</p>
-                    </div>
-                </div>
-                
-                <!-- Search Bar -->
-                <div class="search-container flex-1 max-w-xl ml-auto">
-                    <div class="relative flex gap-2">
-                        <div class="relative flex-1">
-                            <input 
-                                type="text" 
-                                id="searchInput" 
-                                placeholder="Search articles... (e.g., 'recent papers on multimodal AI')"
-                                class="search-input w-full bg-gray-700 text-white border-2 border-gray-600 rounded-lg px-4 py-2 pl-10 pr-10 focus:bg-gray-600 transition"
-                            />
-                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                            <button 
-                                id="clearSearchBtn" 
-                                class="hidden absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition"
-                                title="Clear search"
-                            >
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                        <button 
-                            id="searchBtn" 
-                            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center space-x-2 transition whitespace-nowrap"
-                        >
-                            <i class="fas fa-search"></i>
-                            <span>Search</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </header>
 
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-8">
-        <!-- Tab Navigation -->
-        <div class="tab-nav mb-8 flex space-x-4">
-            <button id="articlesTab" class="tab-button active">
-                <i class="fas fa-newspaper mr-2"></i>Articles
-            </button>
-            <button id="weeklySummaryTab" class="tab-button">
-                <i class="fas fa-chart-line mr-2"></i>Content Overview
+<!-- Header -->
+<header class="header-section">
+    <div class="container mx-auto px-4 py-6">
+        <h1 class="text-3xl font-bold text-white mb-2">
+            <i class="fas fa-robot text-blue-500 mr-2"></i>AI Scout
+        </h1>
+        <p class="text-gray-400">AI Aggregation Layer - Your One-Stop Solution for Latest AI Updates</p>
+    </div>
+</header>
+
+<!-- Search Bar -->
+<section class="search-section">
+    <div class="container mx-auto px-4 py-4">
+        <div class="search-container">
+            <input 
+                type="text" 
+                id="globalSearch"
+                placeholder="Search across all articles..."
+                class="search-input"
+            />
+            <button id="searchBtn" class="search-btn">
+                <i class="fas fa-search"></i>
             </button>
         </div>
-        
-        <!-- Articles Tab Content -->
-        <div id="articlesTabContent" class="tab-content active">
-            <!-- Unified Filter Section -->
-            <div class="mb-8">
-                <div class="bg-gray-800 rounded-lg shadow-xl border border-gray-700 p-6">
-                    <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
-                        <h2 class="text-lg font-semibold text-gray-200">
-                            <i class="fas fa-filter mr-2"></i>Filters
-                        </h2>
-                        <button id="clearFiltersBtn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm flex items-center transition">
-                            <i class="fas fa-times-circle mr-2"></i>Clear All Filters
-                        </button>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <!-- Category Filter Dropdown -->
-                        <div>
-                            <label class="text-sm font-semibold text-gray-400 mb-2 block">CATEGORY</label>
-                            <select id="categoryFilter" class="w-full bg-gray-700 text-white border-2 border-gray-600 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none">
-                                <option value="">All Categories</option>
-                                <!-- Options will be loaded dynamically -->
-                            </select>
-                        </div>
-                        
-                        <!-- Time Range Filter Dropdown -->
-                        <div>
-                            <label class="text-sm font-semibold text-gray-400 mb-2 block">TIME RANGE</label>
-                            <select id="timeRangeFilter" class="w-full bg-gray-700 text-white border-2 border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none">
-                                <option value="">All Time</option>
-                                <option value="24h">Today</option>
-                                <option value="7d">Recent (7 days)</option>
-                                <option value="30d">Last Month</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Source Filter Dropdown -->
-                        <div>
-                            <label class="text-sm font-semibold text-gray-400 mb-2 block">SOURCE</label>
-                            <select id="sourceFilter" class="w-full bg-gray-700 text-white border-2 border-gray-600 rounded-lg px-4 py-2 focus:border-purple-500 focus:outline-none">
-                                <option value="">All Sources</option>
-                                <!-- Options will be loaded dynamically -->
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <!-- Active Filters Display -->
-                    <div id="activeFiltersDisplay" class="mt-4 hidden">
-                        <div class="flex flex-wrap gap-2 items-center">
-                            <span class="text-sm text-gray-400">Active:</span>
-                            <div id="activeFilterTags" class="flex flex-wrap gap-2"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    </div>
+</section>
 
-            <!-- Loading Indicator -->
-            <div id="loadingIndicator" class="loader-container hidden">
-                <i class="fas fa-robot loader-icon"></i>
-                <div class="loader"></div>
-                <div class="loader-text">Loading curated content</div>
-                <div class="loader-subtext loader-dots">Please wait</div>
-            </div>
-
-            <!-- Articles Grid -->
-            <div id="articlesContainer" class="hidden">
-                <div class="mb-4 flex items-center justify-between">
-                    <h2 id="currentCategory" class="text-2xl font-bold text-white"></h2>
-                    <span id="articleCount" class="text-gray-400"></span>
-                </div>
-                <div id="articlesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Articles will be dynamically loaded -->
-                </div>
-                
-                <!-- Pagination Controls -->
-                <div id="paginationContainer" class="hidden mt-8 flex items-center justify-center space-x-2">
-                    <button id="prevPageBtn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                        <i class="fas fa-chevron-left mr-2"></i>Previous
-                    </button>
-                    
-                    <div id="pageNumbers" class="flex space-x-2">
-                        <!-- Page numbers will be dynamically generated -->
-                    </div>
-                    
-                    <button id="nextPageBtn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
-                        Next<i class="fas fa-chevron-right ml-2"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Empty State -->
-            <div id="emptyState" class="hidden text-center py-20">
-                <i class="fas fa-inbox text-6xl text-gray-600 mb-4"></i>
-                <h3 class="text-xl font-semibold text-gray-400">No articles found</h3>
-                <p class="text-gray-500 mt-2">Try adjusting your filters or check back later.</p>
-            </div>
+<!-- Tab Navigation -->
+<section class="tabs-section">
+    <div class="container mx-auto px-4">
+        <div class="tabs-container">
+            <button class="tab active" data-tab="official">
+                <span class="tab-icon">🟢</span>
+                <span class="tab-label">Official Blogs</span>
+                <span class="tab-badge" id="badge-official">0</span>
+            </button>
+            <button class="tab" data-tab="news">
+                <span class="tab-icon">🔵</span>
+                <span class="tab-label">News Sites</span>
+                <span class="tab-badge" id="badge-news">0</span>
+            </button>
+            <button class="tab" data-tab="research">
+                <span class="tab-icon">🟣</span>
+                <span class="tab-label">Research</span>
+                <span class="tab-badge" id="badge-research">0</span>
+            </button>
+            <button class="tab" data-tab="community">
+                <span class="tab-icon">🟠</span>
+                <span class="tab-label">Community</span>
+                <span class="tab-badge" id="badge-community">0</span>
+            </button>
+            <button class="tab" data-tab="tools">
+                <span class="tab-icon">🔷</span>
+                <span class="tab-label">Tools</span>
+                <span class="tab-badge" id="badge-tools">0</span>
+            </button>
         </div>
-        
-        <!-- Weekly Summary Tab Content -->
-        <div id="weeklySummaryTabContent" class="tab-content">
-            <!-- Loading Indicator for Content Overview -->
-            <div id="weeklySummaryLoading" class="loader-container">
-                <i class="fas fa-chart-line loader-icon"></i>
-                <div class="loader"></div>
-                <div class="loader-text">Loading content overview</div>
-                <div class="loader-subtext loader-dots">Analyzing articles</div>
+    </div>
+</section>
+
+<!-- Filters Bar -->
+<section class="filters-section">
+    <div class="container mx-auto px-4 py-4">
+        <div class="filters-container">
+            <div class="filter-group">
+                <label for="dateFilter" class="filter-label">
+                    <i class="far fa-calendar"></i> Date Range
+                </label>
+                <select id="dateFilter" class="filter-select">
+                    <option value="all">All Time</option>
+                    <option value="24h">Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                </select>
             </div>
             
-            <!-- Weekly Summary Section -->
-            <div id="weeklySummarySection" class="hidden">
-                <div class="weekly-summary-card rounded-lg shadow-xl border border-blue-600 p-8 text-white mb-8">
-                    <div class="flex items-center justify-between mb-6">
-                        <div>
-                            <h2 class="text-3xl font-bold flex items-center">
-                                <i class="fas fa-chart-line mr-3"></i>
-                                Content Overview
-                            </h2>
-                            <p class="text-blue-200 text-sm mt-1">All Curated Content</p>
-                        </div>
-                        <i class="fas fa-calendar-week text-5xl opacity-50"></i>
-                    </div>
-                    
-                    <!-- Statistics Grid -->
-                    <div id="statsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <!-- Stats will be loaded dynamically -->
-                    </div>
-                    
-                    <!-- Category Breakdown -->
-                    <div class="mb-8">
-                        <h3 class="text-xl font-semibold mb-4 flex items-center">
-                            <i class="fas fa-layer-group mr-2"></i>
-                            Category Breakdown
-                        </h3>
-                        <div id="categoryBreakdown" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <!-- Category breakdown will be loaded dynamically -->
-                        </div>
-                    </div>
-                    
-                    <!-- Top Sources -->
-                    <div class="mb-8">
-                        <h3 class="text-xl font-semibold mb-4 flex items-center">
-                            <i class="fas fa-rss mr-2"></i>
-                            Top Sources
-                        </h3>
-                        <div id="topSources" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- Top sources will be loaded dynamically -->
-                        </div>
-                    </div>
-                    
-                    <!-- Highlights Section -->
-                    <div>
-                        <h3 class="text-2xl font-semibold mb-4 flex items-center">
-                            <i class="fas fa-star mr-2"></i>
-                            Top Highlights
-                        </h3>
-                        <div id="highlightsContainer" class="space-y-4">
-                            <!-- Highlights will be loaded dynamically -->
-                        </div>
-                    </div>
-                </div>
+            <div class="filter-group">
+                <label for="categoryFilter" class="filter-label">
+                    <i class="fas fa-tag"></i> Category
+                </label>
+                <select id="categoryFilter" class="filter-select">
+                    <option value="all">All Categories</option>
+                    <option value="LLMs & Foundation Models">LLMs & Foundation Models</option>
+                    <option value="AI Tools & Platforms">AI Tools & Platforms</option>
+                    <option value="Open Source AI Projects">Open Source</option>
+                    <option value="AI Research & Papers">Research & Papers</option>
+                    <option value="AI Agents & Automation">Agents & Automation</option>
+                    <option value="AI in Development">AI in Development</option>
+                    <option value="Multimodal AI">Multimodal AI</option>
+                </select>
             </div>
+            
+            <div class="filter-group">
+                <label for="sortFilter" class="filter-label">
+                    <i class="fas fa-sort"></i> Sort By
+                </label>
+                <select id="sortFilter" class="filter-select">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                </select>
+            </div>
+            
+            <div class="filter-stats">
+                <span id="articleCount" class="text-gray-400">0 articles</span>
+            </div>
+            
+            <button id="clearFilters" class="clear-filters-btn">
+                <i class="fas fa-times-circle"></i>
+                <span class="hidden md:inline ml-2">Clear Filters</span>
+            </button>
         </div>
-    </main>
+    </div>
+</section>
 
-    <!-- Footer -->
-    <footer id="footer" class="bg-gray-800 border-t border-gray-700 mt-16 hidden">
-        <div class="container mx-auto px-4 py-6 text-center text-gray-400">
-            <p>&copy; 2025 AI Scout. Curating quality AI research and updates.</p>
-            <p class="mt-2">Built With ❤️ By Pulkit Tyagi</p>
+<!-- Articles Grid -->
+<section class="articles-section">
+    <div class="container mx-auto px-4 py-6">
+        <!-- Inline Search Loader -->
+        <div id="searchLoader" class="search-loader hidden">
+            <div class="search-loader-spinner"></div>
+            <p class="search-loader-text" id="searchLoaderText">Analyzing with AI...</p>
         </div>
-    </footer>
+        
+        <div id="articlesGrid" class="articles-grid">
+            <!-- Articles will be rendered here -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state hidden">
+            <i class="fas fa-inbox text-6xl text-gray-600 mb-4"></i>
+            <p class="text-xl text-gray-400 mb-2">No articles found</p>
+            <p class="text-gray-500">Try adjusting your filters or search query</p>
+        </div>
+    </div>
+</section>
 
-    <!-- JavaScript -->
-    <script src="/static/app.js"></script>
+<!-- Pagination -->
+<section class="pagination-section">
+    <div class="container mx-auto px-4 py-6">
+        <div class="pagination-container">
+            <button id="prevPage" class="pagination-btn">
+                <i class="fas fa-chevron-left"></i>
+                <span class="hidden md:inline ml-2">Previous</span>
+            </button>
+            
+            <div class="pagination-info">
+                <span id="pageInfo" class="text-gray-300">Page 1 of 1</span>
+            </div>
+            
+            <button id="nextPage" class="pagination-btn">
+                <span class="hidden md:inline mr-2">Next</span>
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="bg-gray-800 border-t border-gray-700 mt-16">
+    <div class="container mx-auto px-4 py-6 text-center text-gray-400">
+        <p>&copy; 2025 AI Scout. Curating quality AI research and updates.</p>
+        <p class="mt-2">Built With ❤️ By Pulkit Tyagi</p>
+    </div>
+</footer>
+
+<!-- Floating Overview Button -->
+<button id="overviewBtn" class="floating-overview-btn" title="Content Overview">
+    <i class="fas fa-chart-bar"></i>
+</button>
+
+<!-- Search Results Modal -->
+<div id="searchModal" class="modal-overlay hidden">
+    <div class="modal-content search-modal-content">
+        <div class="modal-header">
+            <h2 class="text-2xl font-bold text-white">
+                <i class="fas fa-brain text-blue-500 mr-2"></i>Search Results
+            </h2>
+            <button id="closeSearch" class="modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body" id="searchResultsContent">
+            <!-- Search results will be rendered here -->
+        </div>
+    </div>
+</div>
+
+<!-- Overview Modal -->
+<div id="overviewModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="text-2xl font-bold text-white">
+                <i class="fas fa-chart-bar text-blue-500 mr-2"></i>Content Overview
+            </h2>
+            <button id="closeOverview" class="modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body" id="overviewContent">
+            <!-- Overview stats will be rendered here -->
+        </div>
+    </div>
+</div>
+
+<!-- Loading Indicator -->
+<div id="loadingIndicator" class="loading-overlay hidden">
+    <div class="loading-spinner"></div>
+    <p class="loading-text">Loading AI updates from 28 sources...</p>
+</div>
+
+<!-- JavaScript -->
+<script src="/static/app.js"></script>
 </body>
 </html>
-

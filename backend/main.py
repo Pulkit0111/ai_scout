@@ -14,8 +14,10 @@ from pathlib import Path
 from feed_aggregator import fetch_all_feeds, get_articles_by_category
 from categorizer import categorize_articles
 from search_handler import search_articles
-from content_overview import generate_content_overview
+from content_overview import generate_content_overview, filter_articles_by_days
 from config import CATEGORIES
+from company_tracker import get_all_companies_with_counts, get_company_updates, get_company_info
+from content_classifier import add_classification
 
 app = FastAPI(
     title="AI Scout API",
@@ -219,6 +221,112 @@ async def get_content_overview():
             "success": True,
             "timestamp": datetime.now().isoformat(),
             "summary": summary
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/companies")
+async def get_companies():
+    """
+    Get list of tracked companies with update counts.
+    
+    Returns:
+        List of companies with metadata, update counts, and latest articles
+    """
+    try:
+        # Fetch all articles
+        articles = fetch_all_feeds()
+        
+        # Add classification to articles
+        classified_articles = [add_classification(article) for article in articles]
+        
+        # Get companies with counts
+        companies = get_all_companies_with_counts(classified_articles)
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "total_companies": len(companies),
+            "companies": companies
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/companies/{company_id}")
+async def get_company_details(company_id: str):
+    """
+    Get all updates from a specific company.
+    
+    Args:
+        company_id: Company identifier (e.g., 'openai', 'anthropic')
+    
+    Returns:
+        Company info with all their updates
+    """
+    try:
+        # Get company info
+        company = get_company_info(company_id)
+        if not company:
+            raise HTTPException(status_code=404, detail=f"Company '{company_id}' not found")
+        
+        # Fetch all articles
+        articles = fetch_all_feeds()
+        
+        # Add classification
+        classified_articles = [add_classification(article) for article in articles]
+        
+        # Get company updates
+        updates = get_company_updates(company_id, classified_articles)
+        
+        # Categorize company updates
+        categorized_updates = categorize_articles(updates)
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "company": {**company, "id": company_id},
+            "total_updates": len(updates),
+            "updates": updates,
+            "by_category": categorized_updates
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/today")
+async def get_today_updates():
+    """
+    Get all updates from the last 24 hours.
+    
+    Returns:
+        Articles from today with categorization
+    """
+    try:
+        # Fetch all articles
+        articles = fetch_all_feeds()
+        
+        # Add classification
+        classified_articles = [add_classification(article) for article in articles]
+        
+        # Filter to last 24 hours
+        today_articles = filter_articles_by_days(classified_articles, days=1)
+        
+        # Categorize
+        categorized = categorize_articles(today_articles)
+        
+        # Sort by time (most recent first)
+        today_articles.sort(key=lambda x: x.get('published_date', ''), reverse=True)
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "total": len(today_articles),
+            "articles": today_articles,
+            "by_category": categorized
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,852 +1,755 @@
-// API Base URL - use relative path since frontend is served by same server
-const API_BASE_URL = window.location.origin;
+/* AI Scout - Tab-Based UI with Client-Side Filtering */
 
-// State - Store ALL articles client-side for filtering
-let allArticlesRaw = []; // Flat list of all articles
-let allArticlesByCategory = {}; // Articles grouped by category
-let activeTab = 'articles'; // 'articles' or 'weeklySummary'
-let isSearchMode = false;
-let searchResults = [];
-let weeklySummaryData = null;
-let weeklySummaryLoaded = false;
-
-// Current filter state
-let currentFilters = {
-    category: '',
-    timeRange: '',
-    source: ''
+// ===== Source Type Mapping =====
+const SOURCE_TYPES = {
+    official: [
+        'openai', 'anthropic', 'google_ai', 'meta_ai',
+        'microsoft_ai', 'nvidia_ai', 'huggingface',
+        'cohere', 'deepmind', 'stability_ai'
+    ],
+    news: [
+        'venturebeat_ai', 'techcrunch_ai', 'mit_tech_ai',
+        'the_verge_ai', 'wired_ai', 'ars_technica_ai',
+        'ai_news', 'axios_ai', 'zdnet_ai', 'forbes_ai'
+    ],
+    research: [
+        'arxiv_cs_ai', 'arxiv_cs_lg', 'arxiv_cs_cl',
+        'paperswithcode', 'the_batch', 'distill'
+    ],
+    community: [
+        'reddit_machinelearning', 'reddit_artificial',
+        'reddit_openai', 'reddit_localllama', 'hackernews_ai'
+    ],
+    tools: [
+        'producthunt_ai', 'github_trending'
+    ]
 };
 
-// Pagination state
-const ARTICLES_PER_PAGE = 9;
-let currentPage = 1;
-let totalPages = 1;
+// ===== Application State =====
+const AppState = {
+    allArticles: [],
+    currentTab: 'official',
+    filters: {
+        dateRange: 'all',
+        category: 'all',
+        sortBy: 'newest'
+    },
+    pagination: {
+        currentPage: 1,
+        perPage: 9
+    }
+};
 
-// DOM Elements
-const articlesTab = document.getElementById('articlesTab');
-const weeklySummaryTab = document.getElementById('weeklySummaryTab');
-const articlesTabContent = document.getElementById('articlesTabContent');
-const weeklySummaryTabContent = document.getElementById('weeklySummaryTabContent');
-const categoryFilter = document.getElementById('categoryFilter');
-const timeRangeFilter = document.getElementById('timeRangeFilter');
-const sourceFilter = document.getElementById('sourceFilter');
-const clearFiltersBtn = document.getElementById('clearFiltersBtn');
-const activeFiltersDisplay = document.getElementById('activeFiltersDisplay');
-const activeFilterTags = document.getElementById('activeFilterTags');
-const articlesGrid = document.getElementById('articlesGrid');
-const articlesContainer = document.getElementById('articlesContainer');
-const loadingIndicator = document.getElementById('loadingIndicator');
-const emptyState = document.getElementById('emptyState');
-const currentCategoryTitle = document.getElementById('currentCategory');
-const articleCount = document.getElementById('articleCount');
-const searchInput = document.getElementById('searchInput');
-const searchBtn = document.getElementById('searchBtn');
-const clearSearchBtn = document.getElementById('clearSearchBtn');
-const paginationContainer = document.getElementById('paginationContainer');
-const prevPageBtn = document.getElementById('prevPageBtn');
-const nextPageBtn = document.getElementById('nextPageBtn');
-const pageNumbers = document.getElementById('pageNumbers');
-const weeklySummarySection = document.getElementById('weeklySummarySection');
-const weeklySummaryLoading = document.getElementById('weeklySummaryLoading');
-const statsGrid = document.getElementById('statsGrid');
-const highlightsContainer = document.getElementById('highlightsContainer');
-const categoryBreakdown = document.getElementById('categoryBreakdown');
-const topSources = document.getElementById('topSources');
+// ===== API Base URL =====
+const API_BASE_URL = window.location.origin;
 
-// Initialize app
+// ===== DOM Elements =====
+let elements = {};
+
+// ===== Initialize App =====
 document.addEventListener('DOMContentLoaded', () => {
-    initializeTabs();
-    initializeFilterListeners();
-    initializePagination();
-    fetchArticles(); // Fetch once and store
-    
-    // Search event listeners
-    searchInput.addEventListener('input', (e) => {
-        if (e.target.value.trim()) {
-            clearSearchBtn.classList.remove('hidden');
-        } else {
-            clearSearchBtn.classList.add('hidden');
-        }
-    });
-    
-    searchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            performSearch(searchInput.value.trim());
-        }
-    });
-    
-    searchBtn.addEventListener('click', () => {
-        performSearch(searchInput.value.trim());
-    });
-    
-    clearSearchBtn.addEventListener('click', () => {
-        clearSearch();
-    });
+    initDOM();
+    setupEventListeners();
+    initializeApp();
 });
 
-// Initialize tabs
-function initializeTabs() {
-    articlesTab.addEventListener('click', () => switchTab('articles'));
-    weeklySummaryTab.addEventListener('click', () => switchTab('weeklySummary'));
-}
-
-// Switch between tabs
-function switchTab(tab) {
-    activeTab = tab;
-    
-    if (tab === 'articles') {
-        articlesTab.classList.add('active');
-        weeklySummaryTab.classList.remove('active');
-        articlesTabContent.classList.add('active');
-        weeklySummaryTabContent.classList.remove('active');
-    } else {
-        articlesTab.classList.remove('active');
-        weeklySummaryTab.classList.add('active');
-        articlesTabContent.classList.remove('active');
-        weeklySummaryTabContent.classList.add('active');
-        
-        if (!weeklySummaryLoaded) {
-            fetchWeeklySummary();
-        }
-    }
-}
-
-// Initialize filter dropdown listeners
-function initializeFilterListeners() {
-    categoryFilter.addEventListener('change', () => {
-        currentFilters.category = categoryFilter.value;
-        currentPage = 1; // Reset to page 1 when filter changes
-        applyFiltersClientSide();
-    });
-    
-    timeRangeFilter.addEventListener('change', () => {
-        currentFilters.timeRange = timeRangeFilter.value;
-        currentPage = 1; // Reset to page 1 when filter changes
-        applyFiltersClientSide();
-    });
-    
-    sourceFilter.addEventListener('change', () => {
-        currentFilters.source = sourceFilter.value;
-        currentPage = 1; // Reset to page 1 when filter changes
-        applyFiltersClientSide();
-    });
-    
-    clearFiltersBtn.addEventListener('click', () => {
-        clearAllFilters();
-    });
-}
-
-// Initialize pagination
-function initializePagination() {
-    prevPageBtn.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            updateArticlesDisplay();
-        }
-    });
-    
-    nextPageBtn.addEventListener('click', () => {
-        if (currentPage < totalPages) {
-            currentPage++;
-            updateArticlesDisplay();
-        }
-    });
-}
-
-// Update pagination controls
-function updatePaginationControls(totalArticles) {
-    totalPages = Math.ceil(totalArticles / ARTICLES_PER_PAGE);
-    
-    // Show/hide pagination based on article count
-    if (totalArticles > ARTICLES_PER_PAGE) {
-        paginationContainer.classList.remove('hidden');
-    } else {
-        paginationContainer.classList.add('hidden');
-        return;
-    }
-    
-    // Update button states
-    prevPageBtn.disabled = currentPage === 1;
-    nextPageBtn.disabled = currentPage === totalPages;
-    
-    // Generate page numbers
-    generatePageNumbers();
-}
-
-// Generate page number buttons
-function generatePageNumbers() {
-    pageNumbers.innerHTML = '';
-    
-    // Show max 5 page numbers at a time
-    const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    
-    // Adjust start if we're near the end
-    if (endPage - startPage < maxVisible - 1) {
-        startPage = Math.max(1, endPage - maxVisible + 1);
-    }
-    
-    // First page
-    if (startPage > 1) {
-        const firstBtn = createPageButton(1);
-        pageNumbers.appendChild(firstBtn);
-        
-        if (startPage > 2) {
-            const dots = document.createElement('span');
-            dots.textContent = '...';
-            dots.className = 'px-2 text-gray-400';
-            pageNumbers.appendChild(dots);
-        }
-    }
-    
-    // Page numbers
-    for (let i = startPage; i <= endPage; i++) {
-        const btn = createPageButton(i);
-        pageNumbers.appendChild(btn);
-    }
-    
-    // Last page
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) {
-            const dots = document.createElement('span');
-            dots.textContent = '...';
-            dots.className = 'px-2 text-gray-400';
-            pageNumbers.appendChild(dots);
-        }
-        
-        const lastBtn = createPageButton(totalPages);
-        pageNumbers.appendChild(lastBtn);
-    }
-}
-
-// Create a page number button
-function createPageButton(pageNum) {
-    const btn = document.createElement('button');
-    btn.textContent = pageNum;
-    btn.className = pageNum === currentPage 
-        ? 'px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold'
-        : 'px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition';
-    
-    btn.addEventListener('click', () => {
-        currentPage = pageNum;
-        updateArticlesDisplay();
-    });
-    
-    return btn;
-}
-
-// Go to specific page
-function goToPage(pageNum) {
-    if (pageNum >= 1 && pageNum <= totalPages) {
-        currentPage = pageNum;
-        updateArticlesDisplay();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-}
-
-// Update display based on current state (filters, search, pagination)
-function updateArticlesDisplay() {
-    if (isSearchMode) {
-        displaySearchResults({ articles: searchResults, total_results: searchResults.length });
-    } else {
-        displayArticles();
-    }
-}
-
-// Display articles (wrapper for filtered display)
-function displayArticles() {
-    applyFiltersClientSide();
-}
-
-// Populate filter dropdowns dynamically
-function populateFilterDropdowns() {
-    // Populate category dropdown
-    const categories = Object.keys(allArticlesByCategory);
-    categoryFilter.innerHTML = '<option value="">All Categories</option>';
-    categories.forEach(category => {
-        const option = document.createElement('option');
-        option.value = category;
-        option.textContent = category;
-        categoryFilter.appendChild(option);
-    });
-    
-    // Populate source dropdown from actual articles
-    const sources = [...new Set(allArticlesRaw.map(a => a.source))].sort();
-    sourceFilter.innerHTML = '<option value="">All Sources</option>';
-    sources.forEach(source => {
-        const option = document.createElement('option');
-        option.value = source;
-        option.textContent = source;
-        sourceFilter.appendChild(option);
-    });
-}
-
-// Clear all filters
-function clearAllFilters() {
-    currentFilters = {
-        category: '',
-        timeRange: '',
-        source: ''
+function initDOM() {
+    elements = {
+        // Tabs
+        tabs: document.querySelectorAll('.tab'),
+        // Filters
+        dateFilter: document.getElementById('dateFilter'),
+        categoryFilter: document.getElementById('categoryFilter'),
+        sortFilter: document.getElementById('sortFilter'),
+        clearFilters: document.getElementById('clearFilters'),
+        // Search
+        globalSearch: document.getElementById('globalSearch'),
+        searchBtn: document.getElementById('searchBtn'),
+        searchModal: document.getElementById('searchModal'),
+        closeSearch: document.getElementById('closeSearch'),
+        searchResultsContent: document.getElementById('searchResultsContent'),
+        // Articles
+        articlesGrid: document.getElementById('articlesGrid'),
+        emptyState: document.getElementById('emptyState'),
+        articleCount: document.getElementById('articleCount'),
+        searchLoader: document.getElementById('searchLoader'),
+        searchLoaderText: document.getElementById('searchLoaderText'),
+        // Pagination
+        prevPage: document.getElementById('prevPage'),
+        nextPage: document.getElementById('nextPage'),
+        pageInfo: document.getElementById('pageInfo'),
+        // Overview
+        overviewBtn: document.getElementById('overviewBtn'),
+        overviewModal: document.getElementById('overviewModal'),
+        closeOverview: document.getElementById('closeOverview'),
+        overviewContent: document.getElementById('overviewContent'),
+        // Loading
+        loadingIndicator: document.getElementById('loadingIndicator')
     };
-    
-    categoryFilter.value = '';
-    timeRangeFilter.value = '';
-    sourceFilter.value = '';
-    
-    currentPage = 1; // Reset to page 1 when clearing filters
-    applyFiltersClientSide();
 }
 
-// Apply filters client-side (no API call!)
-function applyFiltersClientSide() {
-    let filteredArticles = [...allArticlesRaw];
+function setupEventListeners() {
+    // Tab switching
+    elements.tabs.forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
     
-    // Apply category filter
-    if (currentFilters.category) {
-        filteredArticles = filteredArticles.filter(a => a.category === currentFilters.category);
-    }
+    // Filters
+    elements.dateFilter.addEventListener('change', applyFilters);
+    elements.categoryFilter.addEventListener('change', applyFilters);
+    elements.sortFilter.addEventListener('change', applyFilters);
+    elements.clearFilters.addEventListener('click', clearAllFilters);
     
-    // Apply time range filter
-    if (currentFilters.timeRange) {
-        const now = new Date();
-        const cutoffDate = new Date();
-        
-        if (currentFilters.timeRange === '24h') {
-            cutoffDate.setDate(now.getDate() - 1);
-        } else if (currentFilters.timeRange === '7d') {
-            cutoffDate.setDate(now.getDate() - 7);
-        } else if (currentFilters.timeRange === '30d') {
-            cutoffDate.setDate(now.getDate() - 30);
-        }
-        
-        filteredArticles = filteredArticles.filter(article => {
-            try {
-                const articleDate = new Date(article.published_date);
-                return articleDate >= cutoffDate;
-            } catch {
-                return true; // Include if date parsing fails
-            }
-        });
-    }
+    // Search
+    elements.searchBtn.addEventListener('click', performSearch);
+    elements.globalSearch.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
     
-    // Apply source filter
-    if (currentFilters.source) {
-        filteredArticles = filteredArticles.filter(a => a.source === currentFilters.source);
-    }
+    // Pagination
+    elements.prevPage.addEventListener('click', () => changePage(-1));
+    elements.nextPage.addEventListener('click', () => changePage(1));
     
-    // Update active filters display
-    updateActiveFiltersDisplay();
+    // Overview
+    elements.overviewBtn.addEventListener('click', openOverview);
+    elements.closeOverview.addEventListener('click', closeOverview);
+    elements.overviewModal.addEventListener('click', (e) => {
+        if (e.target === elements.overviewModal) closeOverview();
+    });
     
-    // Display filtered articles
-    displayFilteredArticles(filteredArticles);
+    // Search Modal
+    elements.closeSearch.addEventListener('click', closeSearchModal);
+    elements.searchModal.addEventListener('click', (e) => {
+        if (e.target === elements.searchModal) closeSearchModal();
+    });
+    
+    // Keyboard navigation
+    document.addEventListener('keydown', handleKeyboardNavigation);
 }
 
-// Update active filters display
-function updateActiveFiltersDisplay() {
-    const hasFilters = currentFilters.category || currentFilters.timeRange || currentFilters.source;
+// ===== Keyboard Navigation =====
+function handleKeyboardNavigation(e) {
+    // Arrow keys for pagination
+    if (e.key === 'ArrowLeft' && !elements.prevPage.disabled) {
+        changePage(-1);
+    } else if (e.key === 'ArrowRight' && !elements.nextPage.disabled) {
+        changePage(1);
+    }
     
-    if (hasFilters) {
-        activeFiltersDisplay.classList.remove('hidden');
-        activeFilterTags.innerHTML = '';
-        
-        if (currentFilters.category) {
-            const tag = createActiveFilterTag('Category', currentFilters.category);
-            activeFilterTags.appendChild(tag);
+    // Escape key to close modals
+    if (e.key === 'Escape') {
+        if (!elements.searchModal.classList.contains('hidden')) {
+            closeSearchModal();
+        } else if (!elements.overviewModal.classList.contains('hidden')) {
+            closeOverview();
         }
-        
-        if (currentFilters.timeRange) {
-            const timeLabels = {
-                '24h': 'Today',
-                '7d': 'Recent (7 days)',
-                '30d': 'Last Month'
-            };
-            const tag = createActiveFilterTag('Time', timeLabels[currentFilters.timeRange]);
-            activeFilterTags.appendChild(tag);
+    }
+    
+    // Number keys (1-5) for tab switching
+    const tabKeys = { '1': 'official', '2': 'news', '3': 'research', '4': 'community', '5': 'tools' };
+    if (tabKeys[e.key] && !e.ctrlKey && !e.metaKey) {
+        const activeElement = document.activeElement;
+        // Don't trigger if user is typing in an input
+        if (activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'TEXTAREA') {
+            switchTab(tabKeys[e.key]);
         }
-        
-        if (currentFilters.source) {
-            const tag = createActiveFilterTag('Source', currentFilters.source);
-            activeFilterTags.appendChild(tag);
-        }
-    } else {
-        activeFiltersDisplay.classList.add('hidden');
     }
 }
 
-// Create active filter tag element
-function createActiveFilterTag(type, value) {
-    const tag = document.createElement('span');
-    tag.className = 'inline-flex items-center bg-blue-900 text-blue-200 text-xs font-semibold px-3 py-1 rounded-full';
-    tag.innerHTML = `<strong>${type}:</strong>&nbsp;${value}`;
-    return tag;
-}
-
-// Fetch articles from API (only once, or on refresh)
-async function fetchArticles() {
+// ===== Initialize Application =====
+async function initializeApp() {
     showLoading();
     
     try {
+        // Fetch all articles once
         const response = await fetch(`${API_BASE_URL}/api/feeds`);
-        
-        if (!response.ok) {
-            throw new Error('Failed to fetch articles');
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
-        allArticlesByCategory = data.categories;
         
-        // Flatten into a single array for easier filtering
-        allArticlesRaw = [];
-        for (const [category, articles] of Object.entries(allArticlesByCategory)) {
-            articles.forEach(article => {
-                article.category = category; // Ensure category is set
-                allArticlesRaw.push(article);
-            });
-        }
+        // Flatten articles from categories
+        AppState.allArticles = flattenArticles(data.categories || {});
         
-        // Populate dropdowns with available options
-        populateFilterDropdowns();
+        // Update tab badges
+        updateTabBadges();
         
-        // Display all articles initially
-        applyFiltersClientSide();
+        // Render initial view
+        renderArticles();
         
+        hideLoading();
     } catch (error) {
-        console.error('Error fetching articles:', error);
-        showError('Failed to load articles. Please make sure the backend is running.');
+        console.error('Error loading articles:', error);
+        hideLoading();
+        showError('Failed to load articles. Please refresh the page.');
     }
 }
 
-// Display filtered articles
-function displayFilteredArticles(articlesToDisplay) {
-    articlesGrid.innerHTML = '';
+// ===== Tab Management =====
+function switchTab(tabName) {
+    AppState.currentTab = tabName;
+    AppState.pagination.currentPage = 1;
     
-    // Update title
-    let titleText = 'All Articles';
-    if (currentFilters.category) {
-        titleText = currentFilters.category;
-    } else if (currentFilters.timeRange || currentFilters.source) {
-        titleText = 'Filtered Articles';
-    }
-    currentCategoryTitle.textContent = titleText;
+    // Clear search when switching tabs (optional - you can remove this if you want search to persist)
+    // AppState.searchResults = null;
+    // AppState.filters.searchQuery = '';
+    // elements.globalSearch.value = '';
     
-    if (articlesToDisplay.length === 0) {
-        showEmpty();
-        paginationContainer.classList.add('hidden');
+    // Update active tab
+    elements.tabs.forEach(tab => {
+        if (tab.dataset.tab === tabName) {
+            tab.classList.add('active');
+    } else {
+            tab.classList.remove('active');
+        }
+    });
+    
+    renderArticles();
+}
+
+function updateTabBadges() {
+    Object.keys(SOURCE_TYPES).forEach(tabKey => {
+        const badge = document.getElementById(`badge-${tabKey}`);
+        if (badge) {
+            const sources = SOURCE_TYPES[tabKey];
+            const count = AppState.allArticles.filter(a => 
+                sources.includes(a.source)
+            ).length;
+            badge.textContent = count;
+        }
+    });
+}
+
+// ===== Filtering =====
+function applyFilters() {
+    AppState.filters.dateRange = elements.dateFilter.value;
+    AppState.filters.category = elements.categoryFilter.value;
+    AppState.filters.sortBy = elements.sortFilter.value;
+    AppState.pagination.currentPage = 1;
+    renderArticles();
+}
+
+function clearAllFilters() {
+    // Reset filters to defaults
+    AppState.filters.dateRange = 'all';
+    AppState.filters.category = 'all';
+    AppState.filters.sortBy = 'newest';
+    AppState.pagination.currentPage = 1;
+    
+    // Reset UI elements
+    elements.dateFilter.value = 'all';
+    elements.categoryFilter.value = 'all';
+    elements.sortFilter.value = 'newest';
+    elements.globalSearch.value = '';
+    
+    // Close search modal if open
+    closeSearchModal();
+    
+    // Re-render
+    renderArticles();
+}
+
+async function performSearch() {
+    const query = elements.globalSearch.value.trim();
+    
+    if (!query) {
+        // If empty, just close search modal if open
+        closeSearchModal();
         return;
     }
     
-    // Calculate pagination
-    const totalArticles = articlesToDisplay.length;
-    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
-    const endIndex = startIndex + ARTICLES_PER_PAGE;
-    const currentPageArticles = articlesToDisplay.slice(startIndex, endIndex);
+    // Show search modal with loading state
+    openSearchModal();
+    showSearchModalLoader();
     
-    // Update article count to show pagination info
-    if (totalArticles > ARTICLES_PER_PAGE) {
-        const startNum = startIndex + 1;
-        const endNum = Math.min(endIndex, totalArticles);
-        articleCount.textContent = `Showing ${startNum}-${endNum} of ${totalArticles} curated articles`;
-    } else {
-        articleCount.textContent = `${totalArticles} curated articles`;
+    try {
+        // Use backend semantic search API
+        const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        console.log(`Search results: ${data.total_results} articles found`);
+        
+        // Render search results in modal (backend already filters to >=75% and max 6)
+        renderSearchResults(query, data.articles || [], data.search_type || 'semantic');
+    } catch (error) {
+        console.error('Semantic search failed:', error);
+        renderSearchError('Search failed. Try a different query or check your connection.');
+    }
+}
+
+function getFilteredArticles() {
+    // Normal filtering (search results are now shown in modal, not here)
+    let articles = [...AppState.allArticles];
+    
+    // 1. Filter by active tab (source type)
+    const tabSources = SOURCE_TYPES[AppState.currentTab];
+    articles = articles.filter(a => tabSources.includes(a.source));
+    
+    // 2. Filter by date range
+    if (AppState.filters.dateRange !== 'all') {
+        articles = filterByDate(articles, AppState.filters.dateRange);
     }
     
-    // Display only current page articles
-    currentPageArticles.forEach((article, index) => {
-        const articleCard = createArticleCard(article, index);
-        articlesGrid.appendChild(articleCard);
+    // 3. Filter by category
+    if (AppState.filters.category !== 'all') {
+        articles = articles.filter(a => a.category === AppState.filters.category);
+    }
+    
+    // 4. Sort
+    articles = sortArticles(articles, AppState.filters.sortBy);
+    
+    return articles;
+}
+
+function filterByDate(articles, range) {
+    const now = new Date();
+    let cutoffDate;
+    
+    switch(range) {
+        case '24h':
+            cutoffDate = new Date(now - 24 * 60 * 60 * 1000);
+            break;
+        case '7d':
+            cutoffDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
+            break;
+        case '30d':
+            cutoffDate = new Date(now - 30 * 24 * 60 * 60 * 1000);
+            break;
+        default:
+            return articles;
+    }
+    
+    return articles.filter(a => {
+        if (!a.published_date) return false;
+        const articleDate = new Date(a.published_date);
+        return articleDate >= cutoffDate;
+    });
+}
+
+function sortArticles(articles, sortBy) {
+    const sorted = [...articles];
+    
+    if (sortBy === 'newest') {
+        sorted.sort((a, b) => {
+            const dateA = new Date(a.published_date || 0);
+            const dateB = new Date(b.published_date || 0);
+            return dateB - dateA;
+        });
+    } else if (sortBy === 'oldest') {
+        sorted.sort((a, b) => {
+            const dateA = new Date(a.published_date || 0);
+            const dateB = new Date(b.published_date || 0);
+            return dateA - dateB;
+        });
+    }
+    
+    return sorted;
+}
+
+// ===== Rendering =====
+function renderArticles() {
+    const filteredArticles = getFilteredArticles();
+    const totalArticles = filteredArticles.length;
+    
+    // Update count
+    elements.articleCount.textContent = `${totalArticles} article${totalArticles !== 1 ? 's' : ''}`;
+    
+    // Paginate
+    const totalPages = Math.ceil(totalArticles / AppState.pagination.perPage);
+    const start = (AppState.pagination.currentPage - 1) * AppState.pagination.perPage;
+    const paginatedArticles = filteredArticles.slice(start, start + AppState.pagination.perPage);
+    
+    // Add fade effect
+    elements.articlesGrid.style.opacity = '0';
+    
+    setTimeout(() => {
+        // Render articles
+        if (paginatedArticles.length === 0) {
+            elements.articlesGrid.innerHTML = '';
+            elements.emptyState.classList.remove('hidden');
+        } else {
+            elements.emptyState.classList.add('hidden');
+            elements.articlesGrid.innerHTML = paginatedArticles.map(article => 
+                createArticleCard(article)
+            ).join('');
+        }
+        
+        // Fade in
+        elements.articlesGrid.style.opacity = '1';
+        
+        // Update pagination
+        updatePagination(totalPages);
+        
+        // Scroll to top smoothly
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
+}
+
+function createArticleCard(article) {
+    const sourceType = getSourceType(article.source);
+    const sourceName = getSourceName(article.source);
+    const summary = stripHtml(article.summary || '').substring(0, 200);
+    const date = formatDate(article.published_date);
+    
+    return `
+        <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="article-card">
+            <div class="article-header">
+                <span class="article-source ${sourceType}">${sourceName}</span>
+            </div>
+            <h3 class="article-title">${escapeHtml(article.title)}</h3>
+            <p class="article-summary">${escapeHtml(summary)}${summary.length >= 200 ? '...' : ''}</p>
+            <div class="article-meta">
+                <span class="article-date">
+                    <i class="far fa-calendar"></i>
+                    ${date}
+                </span>
+                ${article.category ? `<span class="article-category">${escapeHtml(article.category)}</span>` : ''}
+            </div>
+            <span class="article-read-more">
+                Read article <i class="fas fa-arrow-right"></i>
+            </span>
+        </a>
+    `;
+}
+
+// ===== Pagination =====
+function changePage(direction) {
+    const filteredArticles = getFilteredArticles();
+    const totalPages = Math.ceil(filteredArticles.length / AppState.pagination.perPage);
+    
+    const newPage = AppState.pagination.currentPage + direction;
+    
+    if (newPage >= 1 && newPage <= totalPages) {
+        AppState.pagination.currentPage = newPage;
+        renderArticles();
+    }
+}
+
+function updatePagination(totalPages) {
+    const currentPage = AppState.pagination.currentPage;
+    
+    elements.pageInfo.textContent = `Page ${currentPage} of ${totalPages || 1}`;
+    
+    elements.prevPage.disabled = currentPage <= 1;
+    elements.nextPage.disabled = currentPage >= totalPages;
+}
+
+// ===== Search Modal =====
+function openSearchModal() {
+    elements.searchModal.classList.remove('hidden');
+}
+
+function closeSearchModal() {
+    elements.searchModal.classList.add('hidden');
+}
+
+function showSearchModalLoader() {
+    elements.searchResultsContent.innerHTML = `
+        <div class="search-loader" style="display: flex; flex-direction: column; align-items: center; padding: 60px 20px;">
+            <div class="search-loader-spinner" style="width: 60px; height: 60px; border: 4px solid var(--bg-tertiary); border-top-color: var(--color-primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 24px;"></div>
+            <p style="font-size: 18px; font-weight: 600; color: var(--text-secondary); animation: pulse-text 2s ease-in-out infinite;">
+                <i class="fas fa-brain"></i> Analyzing with AI...
+            </p>
+        </div>
+    `;
+}
+
+function renderSearchResults(query, articles, searchType) {
+    if (!articles || articles.length === 0) {
+        elements.searchResultsContent.innerHTML = `
+            <div class="search-empty-state">
+                <i class="fas fa-search"></i>
+                <h3>No results found</h3>
+                <p>No articles matched your search query with ≥75% relevance.</p>
+                <p class="mt-2 text-sm">Try a different query or use more general terms.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const resultsHTML = `
+        <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--bg-tertiary);">
+            <p style="font-size: 14px; color: var(--text-secondary);">
+                <i class="fas fa-brain text-blue-500 mr-2"></i>
+                Found <strong>${articles.length}</strong> relevant article${articles.length !== 1 ? 's' : ''} with ≥75% relevance
+                <span class="ml-2 text-xs text-gray-500">(${searchType} search)</span>
+            </p>
+            <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 4px;">
+                Query: "${escapeHtml(query)}"
+            </p>
+        </div>
+        ${articles.map(article => createSearchResultCard(article)).join('')}
+    `;
+    
+    elements.searchResultsContent.innerHTML = resultsHTML;
+}
+
+function createSearchResultCard(article) {
+    const sourceType = getSourceType(article.source);
+    const sourceName = getSourceName(article.source);
+    const summary = stripHtml(article.summary || '').substring(0, 250);
+    const date = formatDate(article.published_date);
+    
+    // Get relevance percentage (backend sends relevance_percentage already calculated)
+    const relevance = article.relevance_percentage || Math.round(article.relevance_score || 0);
+    
+    return `
+        <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="search-result-item">
+            <div class="search-result-header">
+                <span class="article-source ${sourceType}">${sourceName}</span>
+                <span class="search-result-relevance">
+                    <i class="fas fa-brain"></i> ${relevance}% Match
+                </span>
+            </div>
+            <h3 class="search-result-title">${escapeHtml(article.title)}</h3>
+            <p class="search-result-summary">${escapeHtml(summary)}${summary.length >= 250 ? '...' : ''}</p>
+            <div class="search-result-meta">
+                <span>
+                    <i class="far fa-calendar"></i>
+                    ${date}
+                </span>
+                ${article.category ? `
+                    <span>
+                        <i class="fas fa-tag"></i>
+                        ${escapeHtml(article.category)}
+                    </span>
+                ` : ''}
+                <span style="color: var(--color-primary);">
+                    <i class="fas fa-external-link-alt"></i>
+                    Read article
+                </span>
+            </div>
+        </a>
+    `;
+}
+
+function renderSearchError(message) {
+    elements.searchResultsContent.innerHTML = `
+        <div class="search-empty-state">
+            <i class="fas fa-exclamation-triangle" style="color: var(--color-error);"></i>
+            <h3>Search Failed</h3>
+            <p>${escapeHtml(message)}</p>
+        </div>
+    `;
+}
+
+// ===== Overview Modal =====
+function openOverview() {
+    const stats = generateOverviewStats();
+    elements.overviewContent.innerHTML = stats;
+    elements.overviewModal.classList.remove('hidden');
+}
+
+function closeOverview() {
+    elements.overviewModal.classList.add('hidden');
+}
+
+function generateOverviewStats() {
+    const total = AppState.allArticles.length;
+    
+    // Count by source type
+    const byType = {};
+    Object.keys(SOURCE_TYPES).forEach(type => {
+        byType[type] = AppState.allArticles.filter(a => 
+            SOURCE_TYPES[type].includes(a.source)
+        ).length;
     });
     
-    // Update pagination controls
-    updatePaginationControls(totalArticles);
+    // Count by category
+    const byCategory = {};
+    AppState.allArticles.forEach(article => {
+        const cat = article.category || 'Uncategorized';
+        byCategory[cat] = (byCategory[cat] || 0) + 1;
+    });
     
-    hideLoading();
-    articlesContainer.classList.remove('hidden');
-    emptyState.classList.add('hidden');
+    // Recent articles (last 24h)
+    const recent = filterByDate(AppState.allArticles, '24h').length;
+    
+    // Top 5 most recent articles across all sections
+    const topArticles = [...AppState.allArticles]
+        .sort((a, b) => {
+            const dateA = new Date(a.published_date || 0);
+            const dateB = new Date(b.published_date || 0);
+            return dateB - dateA;
+        })
+        .slice(0, 5);
+    
+    return `
+        <div class="space-y-6">
+            <div class="bg-gray-700 p-4 rounded-lg">
+                <h3 class="text-lg font-bold text-white mb-2">Total Articles</h3>
+                <p class="text-4xl font-bold text-blue-500">${total}</p>
+                <p class="text-sm text-gray-400 mt-1">${recent} in last 24 hours</p>
+            </div>
+            
+            <div class="bg-gray-700 p-4 rounded-lg">
+                <h3 class="text-lg font-bold text-white mb-3">By Source Type</h3>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">🟢 Official Blogs</span>
+                        <span class="text-white font-bold">${byType.official || 0}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">🔵 News Sites</span>
+                        <span class="text-white font-bold">${byType.news || 0}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">🟣 Research</span>
+                        <span class="text-white font-bold">${byType.research || 0}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">🟠 Community</span>
+                        <span class="text-white font-bold">${byType.community || 0}</span>
+                    </div>
+                <div class="flex justify-between items-center">
+                        <span class="text-gray-300">🔷 Tools</span>
+                        <span class="text-white font-bold">${byType.tools || 0}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-700 p-4 rounded-lg">
+                <h3 class="text-lg font-bold text-white mb-3">Top Categories</h3>
+                <div class="space-y-2">
+                    ${Object.entries(byCategory)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 5)
+                        .map(([cat, count]) => `
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-300 text-sm">${escapeHtml(cat)}</span>
+                                <span class="text-white font-bold">${count}</span>
+                            </div>
+                        `).join('')}
+                </div>
+            </div>
+            
+            <div class="bg-gray-700 p-4 rounded-lg">
+                <h3 class="text-lg font-bold text-white mb-3">
+                    <i class="fas fa-star text-yellow-500 mr-2"></i>Top Recent Articles
+                </h3>
+                <div class="space-y-3">
+                    ${topArticles.map(article => {
+                        const sourceType = getSourceType(article.source);
+                        const sourceName = getSourceName(article.source);
+                        return `
+                            <a href="${article.link}" target="_blank" rel="noopener noreferrer" 
+                               class="block p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition border-l-4 border-${sourceType === 'official' ? 'green' : sourceType === 'news' ? 'blue' : sourceType === 'research' ? 'purple' : sourceType === 'community' ? 'yellow' : 'cyan'}-500">
+                                <div class="text-xs text-gray-400 mb-1">${sourceName}</div>
+                                <div class="text-sm text-white font-medium line-clamp-2">${escapeHtml(article.title)}</div>
+                                <div class="text-xs text-gray-500 mt-1">${formatDate(article.published_date)}</div>
+                            </a>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+                </div>
+            `;
 }
 
-// Create article card element
-function createArticleCard(article, index) {
-    const card = document.createElement('div');
-    card.className = 'article-card bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 fade-in';
-    card.style.animationDelay = `${index * 0.05}s`;
-    
-    const categoryBadge = document.createElement('span');
-    categoryBadge.className = 'inline-block bg-blue-900 text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded mb-3';
-    categoryBadge.textContent = article.category || 'Uncategorized';
-    
-    const title = document.createElement('h3');
-    title.className = 'text-lg font-bold text-white mb-2 line-clamp-2';
-    title.textContent = article.title;
-    
-    const meta = document.createElement('div');
-    meta.className = 'flex items-center space-x-2 text-sm text-gray-400 mb-3';
-    meta.innerHTML = `
-        <i class="fas fa-calendar-alt"></i>
-        <span>${article.published_date || 'Unknown date'}</span>
-        <span>•</span>
-        <span class="font-medium">${article.source || 'Unknown source'}</span>
-    `;
-    
-    const summary = document.createElement('p');
-    summary.className = 'text-gray-300 text-sm mb-4 line-clamp-3';
-    const cleanSummary = stripHtmlTags(article.summary || 'No summary available');
-    summary.textContent = cleanSummary.length > 150 ? cleanSummary.substring(0, 150) + '...' : cleanSummary;
-    
-    const link = document.createElement('a');
-    link.href = article.link || '#';
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.className = 'inline-flex items-center text-blue-400 hover:text-blue-300 font-medium text-sm';
-    link.innerHTML = `
-        Read more
-        <i class="fas fa-arrow-right ml-2"></i>
-    `;
-    
-    card.appendChild(categoryBadge);
-    card.appendChild(title);
-    card.appendChild(meta);
-    card.appendChild(summary);
-    card.appendChild(link);
-    
-    return card;
+// ===== Helper Functions =====
+function flattenArticles(categories) {
+    const articles = [];
+    Object.values(categories).forEach(categoryArticles => {
+        articles.push(...categoryArticles);
+    });
+    return articles;
 }
 
-// Utility functions
-function showLoading() {
-    loadingIndicator.classList.remove('hidden');
-    articlesContainer.classList.add('hidden');
-    emptyState.classList.add('hidden');
-    document.getElementById('footer').classList.add('hidden');
+function getSourceType(source) {
+    for (const [type, sources] of Object.entries(SOURCE_TYPES)) {
+        if (sources.includes(source)) return type;
+    }
+    return 'news'; // default
+}
+
+function getSourceName(sourceId) {
+    const names = {
+        "openai": "OpenAI", "anthropic": "Anthropic", "google_ai": "Google AI",
+        "meta_ai": "Meta AI", "microsoft_ai": "Microsoft", "nvidia_ai": "NVIDIA",
+        "huggingface": "Hugging Face", "cohere": "Cohere", "deepmind": "DeepMind",
+        "stability_ai": "Stability AI", "venturebeat_ai": "VentureBeat",
+        "techcrunch_ai": "TechCrunch", "mit_tech_ai": "MIT Tech Review",
+        "the_verge_ai": "The Verge", "wired_ai": "WIRED", "ars_technica_ai": "Ars Technica",
+        "ai_news": "AI News", "axios_ai": "Axios", "zdnet_ai": "ZDNet",
+        "forbes_ai": "Forbes", "arxiv_cs_ai": "arXiv AI", "arxiv_cs_lg": "arXiv ML",
+        "arxiv_cs_cl": "arXiv NLP", "paperswithcode": "Papers with Code",
+        "the_batch": "The Batch", "distill": "Distill",
+        "reddit_machinelearning": "r/MachineLearning", "reddit_artificial": "r/artificial",
+        "reddit_openai": "r/OpenAI", "reddit_localllama": "r/LocalLLaMA",
+        "hackernews_ai": "Hacker News", "producthunt_ai": "Product Hunt",
+        "github_trending": "GitHub Trending"
+    };
+    return names[sourceId] || sourceId;
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'Unknown date';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function stripHtml(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div.innerText || '';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+
+// ===== UI State Functions =====
+function showLoading(message = 'Loading AI updates...') {
+    const indicator = elements.loadingIndicator;
+    indicator.classList.remove('hidden');
+    const textElement = indicator.querySelector('.loading-text');
+    if (textElement) {
+        textElement.textContent = message;
+    }
 }
 
 function hideLoading() {
-    loadingIndicator.classList.add('hidden');
-    document.getElementById('footer').classList.remove('hidden');
-}
-
-function showEmpty() {
-    loadingIndicator.classList.add('hidden');
-    articlesContainer.classList.add('hidden');
-    emptyState.classList.remove('hidden');
-    document.getElementById('footer').classList.remove('hidden');
+    elements.loadingIndicator.classList.add('hidden');
 }
 
 function showError(message) {
-    hideLoading();
-    alert(message);
-}
-
-function stripHtmlTags(html) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || '';
-}
-
-// Content Overview Functions
-
-async function fetchWeeklySummary() {
-    weeklySummaryLoading.classList.remove('hidden');
-    weeklySummarySection.classList.add('hidden');
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/content-overview`);
-        
-        if (!response.ok) {
-            throw new Error('Failed to fetch content overview');
-        }
-        
-        const data = await response.json();
-        weeklySummaryData = data.summary;
-        weeklySummaryLoaded = true;
-        
-        displayWeeklySummary();
-    } catch (error) {
-        console.error('Error fetching content overview:', error);
-        weeklySummaryLoading.innerHTML = `
-            <div class="text-center text-red-400">
-                <i class="fas fa-exclamation-circle text-4xl mb-4"></i>
-                <p>Failed to load content overview</p>
+    // Create a toast notification
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md';
+    toast.innerHTML = `
+        <div class="flex items-start gap-3">
+            <i class="fas fa-exclamation-circle text-xl"></i>
+            <div class="flex-1">
+                <div class="font-semibold">${message}</div>
             </div>
-        `;
-    }
-}
-
-function displayWeeklySummary() {
-    if (!weeklySummaryData) {
-        return;
-    }
-    
-    const stats = weeklySummaryData.statistics;
-    const highlights = weeklySummaryData.highlights;
-    
-    // Display main statistics
-    statsGrid.innerHTML = '';
-    
-    const totalCard = createStatCard(
-        'fas fa-newspaper',
-        stats.total_articles || 0,
-        'Total Articles',
-        'bg-blue-700'
-    );
-    statsGrid.appendChild(totalCard);
-    
-    const categoriesCount = Object.keys(stats.category_breakdown || {}).length;
-    const categoriesCard = createStatCard(
-        'fas fa-layer-group',
-        categoriesCount,
-        'Categories',
-        'bg-purple-700'
-    );
-    statsGrid.appendChild(categoriesCard);
-    
-    const sourcesCount = (stats.top_sources || []).length;
-    const sourcesCard = createStatCard(
-        'fas fa-rss',
-        sourcesCount,
-        'Sources',
-        'bg-green-700'
-    );
-    statsGrid.appendChild(sourcesCard);
-    
-    // Display category breakdown
-    categoryBreakdown.innerHTML = '';
-    if (stats.category_breakdown) {
-        Object.entries(stats.category_breakdown).forEach(([category, count]) => {
-            const breakdownCard = document.createElement('div');
-            breakdownCard.className = 'bg-white bg-opacity-10 rounded-lg p-4';
-            breakdownCard.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <span class="text-sm">${category}</span>
-                    <span class="text-xl font-bold">${count}</span>
+            <button onclick="this.parentElement.parentElement.remove()" class="text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
                 </div>
             `;
-            categoryBreakdown.appendChild(breakdownCard);
-        });
-    }
     
-    // Display top sources
-    topSources.innerHTML = '';
-    if (stats.top_sources) {
-        stats.top_sources.forEach(source => {
-            const sourceCard = document.createElement('div');
-            sourceCard.className = 'bg-white bg-opacity-10 rounded-lg p-4 flex justify-between items-center';
-            sourceCard.innerHTML = `
-                <div class="flex items-center">
-                    <i class="fas fa-rss mr-3 text-green-400"></i>
-                    <span class="font-medium">${source.source}</span>
-                </div>
-                <span class="text-xl font-bold">${source.count}</span>
-            `;
-            topSources.appendChild(sourceCard);
-        });
-    }
+    document.body.appendChild(toast);
     
-    // Display highlights
-    highlightsContainer.innerHTML = '';
-    if (highlights && highlights.length > 0) {
-        highlights.forEach((article, index) => {
-            const highlightCard = createHighlightCard(article, index + 1);
-            highlightsContainer.appendChild(highlightCard);
-        });
-    } else {
-        highlightsContainer.innerHTML = '<p class="text-blue-200 text-sm">No highlights available</p>';
-    }
-    
-    weeklySummaryLoading.classList.add('hidden');
-    weeklySummarySection.classList.remove('hidden');
-}
-
-function createStatCard(icon, value, label, bgColor) {
-    const card = document.createElement('div');
-    card.className = `stat-card ${bgColor} rounded-lg p-6 text-center shadow-lg`;
-    card.innerHTML = `
-        <i class="${icon} text-4xl mb-3"></i>
-        <div class="text-4xl font-bold mb-1">${value}</div>
-        <div class="text-sm opacity-90 uppercase tracking-wide">${label}</div>
-    `;
-    return card;
-}
-
-function createHighlightCard(article, index) {
-    const card = document.createElement('div');
-    card.className = 'highlight-card bg-white bg-opacity-10 rounded-lg p-5 hover:bg-opacity-15 transition';
-    
-    const title = document.createElement('h4');
-    title.className = 'font-semibold text-white mb-2 text-lg';
-    title.textContent = `${index}. ${article.title || 'No Title'}`;
-    
-    const meta = document.createElement('div');
-    meta.className = 'text-sm text-blue-200 mb-3 flex items-center flex-wrap gap-3';
-    meta.innerHTML = `
-        <span><i class="fas fa-calendar-alt mr-1"></i> ${article.published_date || 'N/A'}</span>
-        <span><i class="fas fa-tag mr-1"></i> ${article.category || 'Uncategorized'}</span>
-        <span><i class="fas fa-rss mr-1"></i> ${article.source || 'Unknown'}</span>
-    `;
-    
-    const summary = document.createElement('p');
-    summary.className = 'text-blue-100 text-sm mb-3 line-clamp-2';
-    summary.textContent = stripHtmlTags(article.summary || 'No summary available');
-    
-    const link = document.createElement('a');
-    link.href = article.link || '#';
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.className = 'text-blue-300 hover:text-blue-100 text-sm flex items-center font-medium';
-    link.innerHTML = `
-        Read full article
-        <i class="fas fa-external-link-alt ml-2 text-xs"></i>
-    `;
-    
-    card.appendChild(title);
-    card.appendChild(meta);
-    card.appendChild(summary);
-    card.appendChild(link);
-    
-    return card;
-}
-
-// Search Functions
-
-let searchLoadingInterval = null;
-
-function showSearchLoading() {
-    // Show articles container but clear grid
-    articlesGrid.innerHTML = '';
-    articlesContainer.classList.remove('hidden');
-    emptyState.classList.add('hidden');
-    paginationContainer.classList.add('hidden');
-    
-    // Set title
-    currentCategoryTitle.textContent = 'Searching...';
-    
-    // Create rotating loading messages
-    const messages = [
-        'Processing natural language query',
-        'Analyzing semantic context',
-        'Filtering relevant articles',
-        'Almost there...'
-    ];
-    
-    let messageIndex = 0;
-    
-    // Create loading card
-    const loadingCard = document.createElement('div');
-    loadingCard.id = 'searchLoadingCard';
-    loadingCard.className = 'col-span-full flex flex-col items-center justify-center py-20';
-    loadingCard.innerHTML = `
-        <div class="loader-spinner mb-4"></div>
-        <div class="text-xl font-semibold text-white mb-2" id="searchLoadingText">${messages[0]}</div>
-        <div class="text-gray-400">Please wait...</div>
-    `;
-    
-    articlesGrid.appendChild(loadingCard);
-    
-    // Rotate messages every 2 seconds
-    searchLoadingInterval = setInterval(() => {
-        messageIndex = (messageIndex + 1) % messages.length;
-        const textElement = document.getElementById('searchLoadingText');
-        if (textElement) {
-            textElement.textContent = messages[messageIndex];
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.style.transition = 'opacity 0.3s';
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
         }
-    }, 2000);
-}
-
-function hideSearchLoading() {
-    if (searchLoadingInterval) {
-        clearInterval(searchLoadingInterval);
-        searchLoadingInterval = null;
-    }
-    const loadingCard = document.getElementById('searchLoadingCard');
-    if (loadingCard) {
-        loadingCard.remove();
-    }
-}
-
-async function performSearch(query) {
-    if (!query) {
-        clearSearch();
-        return;
-    }
-    
-    // Reset to page 1 for new search
-    currentPage = 1;
-    
-    showSearchLoading();
-    isSearchMode = true;
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
-        
-        if (!response.ok) {
-            throw new Error('Search failed');
-        }
-        
-        const data = await response.json();
-        searchResults = data.articles || [];
-        
-        hideSearchLoading();
-        displaySearchResults(data);
-    } catch (error) {
-        console.error('Error performing search:', error);
-        hideSearchLoading();
-        showError('Search failed. Please try again.');
-    }
-}
-
-function displaySearchResults(data) {
-    articlesGrid.innerHTML = '';
-    
-    currentCategoryTitle.textContent = 'Search Results';
-    
-    // Hide pagination for search results
-    paginationContainer.classList.add('hidden');
-    
-    if (searchResults.length === 0) {
-        articleCount.textContent = 'No highly relevant results found (75%+ relevance required)';
-        showEmpty();
-        return;
-    }
-    
-    // Display search results (top 6 with >= 75% relevance)
-    const totalResults = searchResults.length;
-    if (totalResults === 1) {
-        articleCount.textContent = `${totalResults} highly relevant result`;
-    } else {
-        articleCount.textContent = `Top ${totalResults} results (≥75% relevance)`;
-    }
-    
-    searchResults.forEach((article, index) => {
-        const articleCard = createArticleCard(article, index);
-        
-        // Add relevance percentage indicator (already calculated by backend)
-        const relevancePercentage = article.relevance_percentage || 0;
-        if (relevancePercentage > 0) {
-            const scoreIndicator = document.createElement('div');
-            scoreIndicator.className = 'relevance-score text-sm mt-3 flex items-center gap-2';
-            scoreIndicator.innerHTML = `
-                <div class="flex items-center gap-1">
-                    <i class="fas fa-star text-yellow-400"></i>
-                    <span class="font-semibold">${relevancePercentage}% Relevant</span>
-                </div>
-            `;
-            articleCard.appendChild(scoreIndicator);
-        }
-        
-        articlesGrid.appendChild(articleCard);
-    });
-    
-    articlesContainer.classList.remove('hidden');
-    emptyState.classList.add('hidden');
-}
-
-function clearSearch() {
-    isSearchMode = false;
-    searchResults = [];
-    searchInput.value = '';
-    clearSearchBtn.classList.add('hidden');
-    searchInput.classList.remove('search-active');
-    
-    // Return to filtered view
-    applyFiltersClientSide();
+    }, 5000);
 }
